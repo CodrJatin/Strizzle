@@ -106,6 +106,7 @@ export const hives = pgTable(
   },
   (table) => [
     check('hives_name_check', sql`char_length(${table.name}) <= 100`),
+    index('idx_hives_owner_id').on(table.ownerId),
   ]
 );
 
@@ -123,6 +124,7 @@ export const hiveMembers = pgTable(
   },
   (table) => [
     primaryKey({ columns: [table.hiveId, table.userId] }),
+    index('idx_hive_members_user_id').on(table.userId),
   ]
 );
 
@@ -144,7 +146,9 @@ export const hiveInvites = pgTable('hive_invites', {
   useCount: integer('use_count').notNull().default(0),
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index('idx_hive_invites_hive_id').on(table.hiveId),
+]);
 
 export const announcements = pgTable('announcements', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -158,7 +162,9 @@ export const announcements = pgTable('announcements', {
   body: text('body').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index('idx_announcements_hive_id').on(table.hiveId),
+]);
 
 export const activityLog = pgTable(
   'activity_log',
@@ -311,7 +317,11 @@ export const folders = pgTable(
       .notNull()
       .references(() => users.id),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  }
+  },
+  (table) => [
+    index('idx_folders_hive_id').on(table.hiveId),
+    index('idx_folders_parent_id').on(table.parentId),
+  ]
 );
 
 export const hiveMaterialShares = pgTable(
@@ -404,7 +414,9 @@ export const syllabusUnits = pgTable('syllabus_units', {
     .references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index('idx_syllabus_units_hive_id').on(table.hiveId),
+]);
 
 export const syllabusTopics = pgTable(
   'syllabus_topics',
@@ -427,6 +439,8 @@ export const syllabusTopics = pgTable(
   },
   (table) => [
     index('idx_syllabus_topics_search').using('gin', table.searchVec),
+    index('idx_syllabus_topics_unit_id').on(table.unitId),
+    index('idx_syllabus_topics_hive_id').on(table.hiveId),
   ]
 );
 
@@ -443,6 +457,7 @@ export const syllabusProgress = pgTable(
   },
   (table) => [
     primaryKey({ columns: [table.userId, table.topicId] }),
+    index('idx_syllabus_progress_topic_id').on(table.topicId),
   ]
 );
 
@@ -484,5 +499,6 @@ export const userHivePreferences = pgTable(
   (table) => [
     primaryKey({ columns: [table.userId, table.hiveId] }),
     index('idx_user_hive_preferences_user').on(table.userId),
+    index('idx_user_hive_preferences_hive_id').on(table.hiveId),
   ]
 );

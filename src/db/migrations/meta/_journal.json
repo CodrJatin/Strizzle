@@ -15,6 +15,13 @@
       "when": 1782323000000,
       "tag": "0001_rls_policies",
       "breakpoints": false
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782324000000,
+      "tag": "0002_add_missing_indexes",
+      "breakpoints": false
     }
   ]
 }
