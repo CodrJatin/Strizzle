@@ -62,8 +62,8 @@ export async function updateSession(request: NextRequest) {
     return redirectResponse;
   }
 
-  // Redirect authenticated users visiting /login to /dashboard
-  if (user && pathname === '/login') {
+  // Redirect authenticated users visiting /login or /login/magic to /dashboard
+  if (user && (pathname === '/login' || pathname === '/login/magic')) {
     const dashboardUrl = new URL('/dashboard', request.url);
     const redirectResponse = NextResponse.redirect(dashboardUrl);
 
