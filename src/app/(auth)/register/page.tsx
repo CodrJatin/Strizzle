@@ -4,26 +4,25 @@ import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useForm, Controller } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Mail, Lock, Eye, EyeOff, AlertCircle, Loader2 } from "lucide-react";
+import { Mail, Lock, User, Eye, EyeOff, AlertCircle, CheckCircle, Loader2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupButton } from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { createClient } from "@/lib/supabase/client";
 import { Brand } from "@/components/Brand";
 
-const loginSchema = z.object({
+const registerSchema = z.object({
+  name: z.string().min(1, "Full name is required").max(100),
   email: z.string().min(1, "Email is required").email("Please enter a valid email address"),
-  password: z.string().min(1, "Password is required"),
-  rememberMe: z.boolean(),
+  password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
-type LoginSchema = z.infer<typeof loginSchema>;
+type RegisterSchema = z.infer<typeof registerSchema>;
 
 function GoogleIcon() {
   return (
@@ -48,46 +47,64 @@ function GoogleIcon() {
   );
 }
 
-function LoginForm() {
+function RegisterForm() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [authError, setAuthError] = React.useState<string | null>(null);
   const [showPassword, setShowPassword] = React.useState(false);
 
   const router = useRouter();
   const searchParams = useSearchParams();
-  const returnUrl = searchParams.get("returnUrl") || "/dashboard";
+  const returnUrl = searchParams.get("returnUrl") || "/onboarding";
 
   const {
     register,
     handleSubmit,
-    control,
+    watch,
     formState: { errors },
-  } = useForm<LoginSchema>({
-    resolver: zodResolver(loginSchema),
+  } = useForm<RegisterSchema>({
+    resolver: zodResolver(registerSchema),
     defaultValues: {
+      name: "",
       email: "",
       password: "",
-      rememberMe: false,
     },
   });
 
-  const onSubmit = async (data: LoginSchema) => {
+  const passwordValue = watch("password", "");
+
+  const getPasswordStrength = (pass: string) => {
+    if (!pass) return 0;
+    let score = 0;
+    if (pass.length >= 4) score++;
+    if (pass.length >= 8) score++;
+    if (/[0-9]/.test(pass) || /[^A-Za-z0-9]/.test(pass)) score++;
+    if (/[A-Z]/.test(pass) && /[a-z]/.test(pass)) score++;
+    return score;
+  };
+
+  const passwordStrength = getPasswordStrength(passwordValue);
+
+  const onSubmit = async (data: RegisterSchema) => {
     setIsLoading(true);
     setAuthError(null);
 
     try {
       const supabase = createClient();
-      const { error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
+        options: {
+          data: {
+            full_name: data.name,
+          },
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
       });
 
       if (error) {
         let friendlyError = "Something went wrong. Please try again.";
-        if (error.message === "Invalid login credentials") {
-          friendlyError = "Invalid email or password";
-        } else if (error.message === "Email not confirmed") {
-          friendlyError = "Please verify your email before signing in";
+        if (error.message.includes("User already registered") || error.message.toLowerCase().includes("already exists")) {
+          friendlyError = "An account with this email already exists";
         } else {
           friendlyError = error.message;
         }
@@ -103,7 +120,7 @@ function LoginForm() {
     }
   };
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleSignup = async () => {
     setIsLoading(true);
     setAuthError(null);
 
@@ -129,8 +146,9 @@ function LoginForm() {
     }
   };
 
-  const hasEmailError = !!errors.email || !!authError;
-  const hasPasswordError = !!errors.password || !!authError;
+  const hasNameError = !!errors.name;
+  const hasEmailError = !!errors.email;
+  const hasPasswordError = !!errors.password;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-12 min-h-screen w-full bg-background font-sans">
@@ -181,19 +199,45 @@ function LoginForm() {
           {/* Intro Text */}
           <div className="space-y-1.5">
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-              Welcome back
+              Create your account
             </h1>
             <p className="text-sm text-muted-foreground">
-              Please enter your details to sign in.
+              Start organizing your academic life today.
             </p>
           </div>
 
           {/* Form */}
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            {/* Full Name Field */}
+            <div className="space-y-2">
+              <Label htmlFor="name" className={cn(hasNameError && "text-destructive")}>
+                Full name
+              </Label>
+              <InputGroup>
+                <InputGroupAddon align="inline-start">
+                  <User className={cn("size-4 transition-colors", hasNameError ? "text-destructive" : "text-muted-foreground")} />
+                </InputGroupAddon>
+                <InputGroupInput
+                  id="name"
+                  type="text"
+                  placeholder="Alex Rivers"
+                  disabled={isLoading}
+                  autoComplete="name"
+                  aria-invalid={hasNameError}
+                  {...register("name")}
+                />
+              </InputGroup>
+              {errors.name && (
+                <p className="text-xs text-destructive font-medium animate-in fade-in slide-in-from-top-1 duration-150">
+                  {errors.name.message}
+                </p>
+              )}
+            </div>
+
             {/* Email Field */}
             <div className="space-y-2">
               <Label htmlFor="email" className={cn(hasEmailError && "text-destructive")}>
-                Email address
+                Email
               </Label>
               <InputGroup>
                 <InputGroupAddon align="inline-start">
@@ -202,7 +246,7 @@ function LoginForm() {
                 <InputGroupInput
                   id="email"
                   type="email"
-                  placeholder="student@university.edu"
+                  placeholder="alex.rivers@example.com"
                   disabled={isLoading}
                   autoComplete="email"
                   aria-invalid={hasEmailError}
@@ -228,9 +272,9 @@ function LoginForm() {
                 <InputGroupInput
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
+                  placeholder="••••••••••••"
                   disabled={isLoading}
-                  autoComplete="current-password"
+                  autoComplete="new-password"
                   aria-invalid={hasPasswordError}
                   {...register("password")}
                 />
@@ -249,41 +293,52 @@ function LoginForm() {
                   </InputGroupButton>
                 </InputGroupAddon>
               </InputGroup>
+
+              {/* Password Strength Segmented Bar */}
+              {passwordValue && (
+                <div className="space-y-1.5 pt-1">
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {[1, 2, 3, 4].map((index) => (
+                      <div
+                        key={index}
+                        className={cn(
+                          "h-1 rounded-full transition-colors duration-300",
+                          index <= passwordStrength
+                            ? passwordStrength <= 2
+                              ? "bg-amber-500" // Weak/Medium
+                              : "bg-emerald-500" // Strong
+                            : "bg-border" // Empty
+                        )}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    {passwordStrength >= 3 ? (
+                      <>
+                        <CheckCircle className="size-3.5 text-emerald-500 fill-emerald-500/10" />
+                        <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                          Strong password. At least 8 characters.
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle className="size-3.5 text-amber-500 fill-amber-500/10" />
+                        <span className="text-amber-600 dark:text-amber-400 font-medium">
+                          {passwordValue.length < 8
+                            ? "Must be at least 8 characters."
+                            : "Try adding numbers, uppercase letters, or symbols."}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {errors.password && (
                 <p className="text-xs text-destructive font-medium animate-in fade-in slide-in-from-top-1 duration-150">
                   {errors.password.message}
                 </p>
               )}
-            </div>
-
-            {/* Remember Me & Forgot Password */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Controller
-                  control={control}
-                  name="rememberMe"
-                  render={({ field }) => (
-                    <Checkbox
-                      id="rememberMe"
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                      disabled={isLoading}
-                    />
-                  )}
-                />
-                <Label
-                  htmlFor="rememberMe"
-                  className="text-sm font-normal text-muted-foreground cursor-pointer select-none"
-                >
-                  Remember me
-                </Label>
-              </div>
-              <Link
-                href="/forgot-password"
-                className="text-sm font-medium text-primary hover:underline"
-              >
-                Forgot password?
-              </Link>
             </div>
 
             {/* Auth Error Display */}
@@ -303,10 +358,10 @@ function LoginForm() {
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 size-4 animate-spin" />
-                  Signing in...
+                  Creating account...
                 </>
               ) : (
-                "Sign in"
+                "Create account"
               )}
             </Button>
           </form>
@@ -321,34 +376,26 @@ function LoginForm() {
             </span>
           </div>
 
-          {/* Google Login */}
+          {/* Google Sign Up */}
           <Button
             type="button"
             variant="outline"
             className="w-full h-10 shadow-sm cursor-pointer"
             disabled={isLoading}
-            onClick={handleGoogleLogin}
+            onClick={handleGoogleSignup}
           >
             <GoogleIcon />
-            Continue with Google
+            Sign up with Google
           </Button>
 
           {/* Bottom links */}
-          <div className="text-center space-y-2 pt-2">
+          <div className="text-center pt-2">
             <p className="text-sm text-muted-foreground">
-              Don&apos;t have an account?{" "}
-              <Link href="/register" className="font-semibold text-primary hover:underline">
-                Sign up
+              Already have an account?{" "}
+              <Link href="/login" className="font-semibold text-primary hover:underline">
+                Sign in
               </Link>
             </p>
-            <div>
-              <Link
-                href="/login/magic"
-                className="inline-block text-sm font-medium text-muted-foreground hover:text-foreground transition-colors hover:underline"
-              >
-                Sign in with a magic link
-              </Link>
-            </div>
           </div>
         </div>
       </div>
@@ -356,7 +403,7 @@ function LoginForm() {
   );
 }
 
-export default function LoginPage() {
+export default function RegisterPage() {
   return (
     <React.Suspense
       fallback={
@@ -365,7 +412,7 @@ export default function LoginPage() {
         </div>
       }
     >
-      <LoginForm />
+      <RegisterForm />
     </React.Suspense>
   );
 }

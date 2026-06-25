@@ -1,4 +1,4 @@
-# StudyHive V2 — Database Schema
+# strizzle — Database Schema
 
 > 22 tables · 7 enums · Supabase Postgres + Drizzle ORM  
 > Every table has RLS enabled. No exceptions.

@@ -1,4 +1,4 @@
-# StudyHive V2 — Development Plan
+# strizzle — Development Plan
 
 > Greenfield Build · Individual-First · 6 Phases · ~14–18 Weeks  
 > Version 2.0 · June 2026  
@@ -8,7 +8,7 @@
 
 ## Engineering Overview
 
-StudyHive V2 is a greenfield build. There is no V1 to maintain, migrate from, or be backward-compatible with. Phase 1 establishes the complete V2 schema in one shot, and every subsequent phase builds forward on a clean foundation. The application must be deployable at the end of every phase.
+strizzle is a greenfield build. There is no V1 to maintain, migrate from, or be backward-compatible with. Phase 1 establishes the complete V2 schema in one shot, and every subsequent phase builds forward on a clean foundation. The application must be deployable at the end of every phase.
 
 ### Phase Summary
 
