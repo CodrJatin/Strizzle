@@ -68,8 +68,7 @@ strizzle is a greenfield build. There is no V1 to maintain, migrate from, or be 
 | 1.15 | Build /login/magic and /auth/callback | Email input → Supabase sendMagicLink → confirmation screen. /auth/callback: exchanges code for session, reads returnUrl cookie | 0.25d |
 | 1.16 | Build /onboarding page (3 steps) | Step 1: full_name. Step 2: avatar upload (Supabase Storage avatars bucket). Step 3: theme selection (preview cards). On complete: INSERT user_preferences → /dashboard | 1d |
 | 1.17 | Build authenticated layout shell | app/(app)/layout.tsx. Sidebar: logo, global nav, hive list, user avatar. Topnav: breadcrumb, search input (Cmd+K placeholder), notification bell, user avatar dropdown. FAB: fixed bottom-right. Mobile: Sheet sidebar | 1.5d |
-| 1.18 | Deploy to Vercel | Connect GitHub. Configure env vars. Preview deployments on PRs. Branch protection: passing build + type check. Sentry source maps in next.config.ts | 0.5d |
-
+| 1.18 | Deploy to Vercel | Connect GitHub. Configure env vars. Preview deployments on PRs. Branch protection: passing build + type check. Sentry source maps in next.config.ts | 0.
 ### Deliverables
 - [ ] Next.js 16 monorepo: TypeScript strict, Tailwind, shadcn (CSS vars mode), all dependencies
 - [ ] Supabase staging project: Auth, Storage buckets, pg_cron + pg_net enabled
