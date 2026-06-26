@@ -65,7 +65,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   };
 
   // Determine path context
-  const getContext = (): { type: "workspace" | "library" | "desk" | "hive" | "calendar" | "settings"; id?: string } => {
+  const getContext = (): { type: "workspace" | "library" | "desk" | "hive" | "calendar" | "settings" | "community"; id?: string } => {
     if (pathname.startsWith("/hive/")) {
       const parts = pathname.split("/");
       // Path shape: /hive/[hiveId]/...
@@ -83,6 +83,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (pathname.startsWith("/settings")) {
       return { type: "settings" };
     }
+    if (pathname.startsWith("/feed")) {
+      return { type: "community" };
+    }
     return { type: "workspace" };
   };
 
@@ -98,7 +101,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         { label: "Home", href: "/dashboard", icon: Home },
         { label: "My Workspace", href: "/desk", icon: Layers },
         { label: "Course Notes", href: "/notes", icon: FileText },
-        { label: "Study Groups", href: "/groups", icon: Users },
         { label: "Archive", href: "/archive", icon: Archive },
       ],
       actionLabel: "New Entry",
@@ -123,7 +125,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         { label: "My Materials", href: "/library", icon: FolderOpen },
         { label: "Starred Materials", href: "/library?starred=true", icon: Star },
         { label: "Folders", href: "/library/folders", icon: Folder },
-        { label: "Shared Feed", href: "/library/shared", icon: Rss },
       ],
       actionLabel: "Add Material",
     },
@@ -164,6 +165,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         { label: "Notifications", href: "/settings/notifications", icon: Bell },
       ],
       actionLabel: "Save Config",
+    },
+    community: {
+      title: "Community",
+      subtitle: "Study Hub",
+      icon: Rss,
+      links: [
+        { label: "Shared Feed", href: "/feed", icon: Rss },
+        { label: "Biology 101", href: "/hive/bio-101/overview", icon: Users },
+        { label: "Chemistry 201", href: "/hive/chem-201/overview", icon: Users },
+      ],
+      actionLabel: "New Post",
     },
   };
 
@@ -383,10 +395,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </InputGroup>
           </div>
 
-          {/* Upgrade Button placeholder */}
-          <Button variant="outline" size="sm" className="hidden sm:flex h-8 rounded-lg text-xs font-semibold px-3 cursor-pointer">
-            Upgrade
-          </Button>
+
 
           {/* Notification bell */}
           <Button variant="ghost" size="icon" className="size-8.5 rounded-lg cursor-pointer text-muted-foreground hover:text-foreground">
