@@ -70,14 +70,14 @@ strizzle is a greenfield build. There is no V1 to maintain, migrate from, or be 
 | 1.17 | Build authenticated layout shell | app/(app)/layout.tsx. Sidebar: logo, global nav, hive list, user avatar. Topnav: breadcrumb, search input (Cmd+K placeholder), notification bell, user avatar dropdown. FAB: fixed bottom-right. Mobile: Sheet sidebar | 1.5d |
 | 1.18 | Deploy to Vercel | Connect GitHub. Configure env vars. Preview deployments on PRs. Branch protection: passing build + type check. Sentry source maps in next.config.ts | 0.5d |
 ### Deliverables
-- [ ] Next.js 16 monorepo: TypeScript strict, Tailwind, shadcn (CSS vars mode), all dependencies
-- [ ] Supabase staging project: Auth, Storage buckets, pg_cron + pg_net enabled
-- [ ] Migration 001: all 22 tables, all enums, all tsvector triggers, all indexes applied
-- [ ] RLS policies on all 22 tables — tested with two users
-- [ ] tRPC with protectedProcedure, enforceRole helper, global SWR QueryClient config
-- [ ] Auth flows: email/password, Google OAuth, magic link, 3-step onboarding
-- [ ] Authenticated layout shell: sidebar, topnav, FAB placeholder, mobile responsive
-- [ ] Vercel deployment: staging + preview deploys on PR, Sentry configured
+- [x] Next.js 16 monorepo: TypeScript strict, Tailwind, shadcn (CSS vars mode), all dependencies
+- [x] Supabase staging project: Auth, Storage buckets, pg_cron + pg_net enabled
+- [x] Migration 001: all 22 tables, all enums, all tsvector triggers, all indexes applied
+- [x] RLS policies on all 22 tables — tested with two users
+- [x] tRPC with protectedProcedure, enforceRole helper, global SWR QueryClient config
+- [x] Auth flows: email/password, Google OAuth, magic link, 3-step onboarding
+- [x] Authenticated layout shell: sidebar, topnav, FAB placeholder, mobile responsive
+- [x] Vercel deployment: staging + preview deploys on PR, Sentry configured
 
 ---
 
