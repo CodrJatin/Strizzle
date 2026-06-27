@@ -19,6 +19,9 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { api } from "@/lib/trpc/client";
 import { createClient } from "@/lib/supabase/client";
+import { useQuickAddStore } from "@/store/quickAddStore";
+import { QuickAddModal } from "@/components/QuickAddModal";
+import { GlobalSearch } from "@/components/GlobalSearch";
 
 // Define navigation item interface
 interface NavItem {
@@ -40,7 +43,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
-  const [searchQuery, setSearchQuery] = React.useState("");
+  const [searchOpen, setSearchOpen] = React.useState(false);
 
   // Supabase client
   const supabase = createClient();
@@ -203,9 +206,41 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const activeConfig = contextConfigs[context.type] || contextConfigs.workspace;
 
   // Handle Dynamic Action Button Click
+  const openQuickAdd = useQuickAddStore((s) => s.open);
+
   const handleActionClick = () => {
-    toast.info(`Action triggered: ${activeConfig.actionLabel}`);
+    openQuickAdd();
   };
+
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // 1. Toggle Quick Add on Ctrl+Shift+A
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        openQuickAdd();
+        return;
+      }
+
+      // 2. Toggle Search on '/' key press
+      if (e.key === '/') {
+        // Ignore if user is inside an input, textarea, or contenteditable element
+        const activeEl = document.activeElement;
+        if (
+          activeEl &&
+          (activeEl.tagName === 'INPUT' ||
+            activeEl.tagName === 'TEXTAREA' ||
+            activeEl.hasAttribute('contenteditable'))
+        ) {
+          return;
+        }
+
+        e.preventDefault();
+        setSearchOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [openQuickAdd]);
 
   // Get user's initials for profile fallback
   const getUserInitials = () => {
@@ -380,17 +415,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="flex items-center gap-2 lg:gap-3">
           
           {/* Search bar */}
-          <div className="hidden sm:block w-48 lg:w-64">
-            <InputGroup className="h-8.5 rounded-lg border-input bg-muted/30">
+          <div 
+            onClick={() => setSearchOpen(true)}
+            className="hidden sm:block w-48 lg:w-64 cursor-pointer"
+          >
+            <InputGroup className="h-8.5 rounded-lg border-input bg-muted/30 pointer-events-none">
               <InputGroupAddon align="inline-start">
                 <Search className="size-3.5 text-muted-foreground" />
               </InputGroupAddon>
               <InputGroupInput
                 type="text"
-                placeholder="Search resources..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="text-xs text-foreground placeholder:text-muted-foreground"
+                placeholder="Search (press /)..."
+                readOnly
+                className="text-xs text-foreground placeholder:text-muted-foreground cursor-pointer"
               />
             </InputGroup>
           </div>
@@ -448,6 +485,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <Plus className="size-5" />
             <span className="sr-only">Action</span>
           </button>
+          
+          <QuickAddModal />
+          <GlobalSearch isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
         </main>
 
       </div>

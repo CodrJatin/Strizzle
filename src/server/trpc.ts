@@ -98,3 +98,5 @@ export async function enforceRole(
 
   return member;
 }
+
+export const createCallerFactory = t.createCallerFactory;
