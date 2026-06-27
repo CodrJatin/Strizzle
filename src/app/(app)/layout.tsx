@@ -340,7 +340,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen bg-background flex flex-col font-sans">
+    <div className="h-screen bg-background flex flex-col font-sans overflow-hidden">
       
       {/* Top Navbar: taking full width */}
       <header className="sticky top-0 z-40 w-full h-14 border-b border-border bg-card text-card-foreground flex items-center justify-between px-4 md:px-6 shadow-sm">
