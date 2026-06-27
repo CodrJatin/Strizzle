@@ -93,27 +93,24 @@ export default function DashboardPage() {
     <div className="space-y-10 font-sans max-w-7xl mx-auto pb-12 min-w-0">
       
       {/* Welcome Banner */}
-      <div className="bg-card text-card-foreground border border-border rounded-3xl p-6 md:p-8 shadow-sm flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative overflow-hidden">
+      <div className="bg-card text-card-foreground border border-border rounded-2xl p-4 md:p-5 shadow-xs flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_right,var(--primary),transparent_60%)] opacity-[0.04] pointer-events-none" />
         
-        <div className="space-y-2.5 max-w-xl z-10">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase bg-primary/10 text-primary border border-primary/10">
-            <Sparkles className="size-3 text-primary animate-pulse" /> Personal Study Hub
-          </div>
-          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground leading-tight">
+        <div className="space-y-1 max-w-xl z-10">
+          <h1 className="text-lg md:text-xl font-bold tracking-tight text-foreground leading-tight">
             Welcome back, {user?.fullName || "User"}!
           </h1>
-          <p className="text-xs md:text-sm text-muted-foreground leading-relaxed">
+          <p className="text-[11px] md:text-xs text-muted-foreground leading-normal">
             Quick capture resources to your Desk shelf, organize your permanent Library archive, or check in on your hive study groups.
           </p>
         </div>
 
         {/* Quick Add CTA Panel */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full lg:w-auto z-10">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto z-10">
           <Button 
             onClick={() => openQuickAdd("text")}
             variant="outline"
-            className="rounded-xl h-11 border-border/60 hover:bg-emerald-500/10 hover:text-emerald-500 hover:border-emerald-500/20 text-xs font-semibold cursor-pointer flex items-center justify-center gap-2 shadow-xs shrink-0"
+            className="rounded-xl h-9.5 border-border/60 hover:bg-emerald-500/10 hover:text-emerald-500 hover:border-emerald-500/20 text-xs font-semibold cursor-pointer flex items-center justify-center gap-2 shadow-xs shrink-0"
           >
             <FileText className="size-4" />
             Add Note
@@ -121,14 +118,14 @@ export default function DashboardPage() {
           <Button 
             onClick={() => openQuickAdd("link")}
             variant="outline"
-            className="rounded-xl h-11 border-border/60 hover:bg-blue-500/10 hover:text-blue-500 hover:border-blue-500/20 text-xs font-semibold cursor-pointer flex items-center justify-center gap-2 shadow-xs shrink-0"
+            className="rounded-xl h-9.5 border-border/60 hover:bg-blue-500/10 hover:text-blue-500 hover:border-blue-500/20 text-xs font-semibold cursor-pointer flex items-center justify-center gap-2 shadow-xs shrink-0"
           >
             <Link2 className="size-4" />
             Add Link
           </Button>
           <Button 
             onClick={() => openQuickAdd("file")}
-            className="bg-primary text-primary-foreground hover:bg-primary/95 rounded-xl h-11 text-xs font-semibold cursor-pointer flex items-center justify-center gap-2 shadow-sm shrink-0"
+            className="bg-primary text-primary-foreground hover:bg-primary/95 rounded-xl h-9.5 text-xs font-semibold cursor-pointer flex items-center justify-center gap-2 shadow-sm shrink-0"
           >
             <Upload className="size-4" />
             Upload File
