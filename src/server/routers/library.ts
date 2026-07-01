@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { createTRPCRouter, protectedProcedure } from '../trpc';
-import { materials, libraryMaterials, hiveMaterialShares, hiveMembers, storageObjects } from '@/db/schema';
+import { materials, libraryMaterials, hiveMaterialShares, hiveMembers, storageObjects, hives } from '@/db/schema';
 import { eq, and, desc, asc, sql } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
 
@@ -161,10 +161,28 @@ export const libraryRouter = createTRPCRouter({
           .select({
             shareId: hiveMaterialShares.id,
             hiveId: hiveMaterialShares.hiveId,
+            hiveName: hives.name,
+            hiveCode: hives.courseCode,
             sharedAt: hiveMaterialShares.sharedAt,
-            material: materials,
+            material: {
+              id: materials.id,
+              contentType: materials.contentType,
+              title: materials.title,
+              body: materials.body,
+              url: materials.url,
+              fileName: materials.fileName,
+              fileSize: materials.fileSize,
+              mimeType: materials.mimeType,
+              createdAt: materials.createdAt,
+              ogTitle: materials.ogTitle,
+              ogDescription: materials.ogDescription,
+              ogImage: materials.ogImage,
+              ogDomain: materials.ogDomain,
+              storagePath: materials.storagePath,
+            },
           })
           .from(hiveMaterialShares)
+          .innerJoin(hives, eq(hiveMaterialShares.hiveId, hives.id))
           .innerJoin(hiveMembers, eq(hiveMaterialShares.hiveId, hiveMembers.hiveId))
           .innerJoin(materials, eq(hiveMaterialShares.materialId, materials.id))
           .where(

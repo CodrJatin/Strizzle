@@ -102,12 +102,25 @@ function RegisterForm() {
       });
 
       if (error) {
-        let friendlyError = "Something went wrong. Please try again.";
-        if (error.message.includes("User already registered") || error.message.toLowerCase().includes("already exists")) {
-          friendlyError = "An account with this email already exists";
+        // Safely extract a readable message — error.message can be undefined on 500s
+        const rawMessage =
+          typeof error.message === "string" && error.message.trim().length > 0
+            ? error.message.trim()
+            : JSON.stringify(error);
+
+        let friendlyError: string;
+        if (
+          rawMessage.toLowerCase().includes("user already registered") ||
+          rawMessage.toLowerCase().includes("already exists")
+        ) {
+          friendlyError = "An account with this email already exists. Try signing in instead.";
+        } else if (rawMessage.includes("500") || rawMessage.toLowerCase().includes("unexpected")) {
+          friendlyError =
+            "Supabase returned a server error (500). This usually means email sending is not configured in your Supabase project. Go to Authentication → Settings and either disable \"Enable email confirmations\" or configure a custom SMTP provider.";
         } else {
-          friendlyError = error.message;
+          friendlyError = rawMessage;
         }
+
         setAuthError(friendlyError);
         setIsLoading(false);
       } else {
@@ -115,7 +128,13 @@ function RegisterForm() {
         router.refresh();
       }
     } catch (err: unknown) {
-      setAuthError("Something went wrong. Please try again.");
+      const fallback =
+        err instanceof Error
+          ? err.message
+          : typeof err === "string"
+          ? err
+          : "Something went wrong. Please try again.";
+      setAuthError(fallback);
       setIsLoading(false);
     }
   };

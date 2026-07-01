@@ -2,26 +2,24 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { 
-  Search, Bell, Settings, Menu, Plus, HelpCircle, LogOut,
+  Search, Bell, Settings, Menu, Plus,
   Home, Layers, FileText, Users, Archive, BookOpen, 
   FolderOpen, Star, Folder, Rss, CheckSquare, 
   GitPullRequest, Palette, Shield, User, Loader2
 } from "lucide-react";
-import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
 import { Brand } from "@/components/Brand";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { api } from "@/lib/trpc/client";
-import { createClient } from "@/lib/supabase/client";
 import { useQuickAddStore } from "@/store/quickAddStore";
 import { QuickAddModal } from "@/components/QuickAddModal";
 import { GlobalSearch } from "@/components/GlobalSearch";
+import { UserProfilePopover } from "@/components/UserProfilePopover";
 
 // Define navigation item interface
 interface NavItem {
@@ -41,12 +39,8 @@ interface SidebarContextConfig {
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [searchOpen, setSearchOpen] = React.useState(false);
-
-  // Supabase client
-  const supabase = createClient();
 
   // Fetch authenticated user profile
   const { data: me, isLoading: isLoadingMe } = api.user.getMe.useQuery(undefined, {
@@ -54,18 +48,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     retry: false,
   });
 
-  // Handle Logout
-  const handleLogout = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      toast.success("Logged out successfully");
-      router.push("/login");
-      router.refresh();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to log out");
-    }
-  };
 
   // Determine path context
   const getContext = (): { type: "workspace" | "library" | "desk" | "hive" | "calendar" | "settings" | "community"; id?: string } => {
@@ -86,13 +68,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (pathname.startsWith("/settings")) {
       return { type: "settings" };
     }
-    if (pathname.startsWith("/feed")) {
+    if (pathname.startsWith("/feed") || pathname.startsWith("/hives")) {
       return { type: "community" };
     }
     return { type: "workspace" };
   };
 
   const context = getContext();
+
+  // Fetch hive details if in a hive context
+  const { data: currentHive } = api.hive.getHive.useQuery(
+    { hiveId: context.type === "hive" && context.id ? context.id : "" },
+    { enabled: context.type === "hive" && !!context.id, staleTime: 300000 }
+  );
 
   // Define sidebar context configurations
   const contextConfigs: Record<string, SidebarContextConfig> = {
@@ -137,10 +125,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       icon: Users,
       links: [
         { label: "Overview", href: `/hive/${context.id || "placeholder"}/overview`, icon: Home },
-        { label: "Materials", href: `/hive/${context.id || "placeholder"}/materials`, icon: FolderOpen },
-        { label: "Tasks", href: `/hive/${context.id || "placeholder"}/tasks`, icon: CheckSquare },
         { label: "Syllabus", href: `/hive/${context.id || "placeholder"}/syllabus`, icon: GitPullRequest },
-        { label: "Members", href: `/hive/${context.id || "placeholder"}/members`, icon: Users },
+        { label: "Material", href: `/hive/${context.id || "placeholder"}/materials`, icon: FolderOpen },
+        { label: "Tasks", href: `/hive/${context.id || "placeholder"}/tasks`, icon: CheckSquare },
         { label: "Settings", href: `/hive/${context.id || "placeholder"}/settings`, icon: Settings },
       ],
       actionLabel: "Share Material",
@@ -175,12 +162,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       icon: Rss,
       links: [
         { label: "Shared Feed", href: "/feed", icon: Rss },
-        { label: "Biology 101", href: "/hive/bio-101/overview", icon: Users },
-        { label: "Chemistry 201", href: "/hive/chem-201/overview", icon: Users },
+        { label: "Hives", href: "/hives", icon: Layers },
       ],
       actionLabel: "New Post",
     },
   };
+
+  // If in hive context, dynamically set the title and filter links
+  if (context.type === "hive" && currentHive) {
+    contextConfigs.hive.title = currentHive.name;
+    const isAdminOrOwner = currentHive.role === "admin" || currentHive.role === "owner";
+    if (!isAdminOrOwner) {
+      contextConfigs.hive.links = contextConfigs.hive.links.filter(
+        (link) => !link.href.endsWith("/settings")
+      );
+    }
+  }
 
   function CalendarIconReplacement() {
     return function CalendarIcon(props: any) {
@@ -242,13 +239,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [openQuickAdd]);
 
-  // Get user's initials for profile fallback
-  const getUserInitials = () => {
-    if (!me?.fullName) return "U";
-    const parts = me.fullName.trim().split(/\s+/);
-    if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  };
 
   // Check top link active states
   const isTopLinkActive = (pathPrefix: string) => {
@@ -281,7 +271,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Nav Links */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {activeConfig.links.map((link) => {
-          const isActive = pathname === link.href;
+          const isActive = pathname === link.href || (link.href !== "/dashboard" && link.href !== "/" && pathname.startsWith(link.href));
           return (
             <Link
               key={link.label}
@@ -312,30 +302,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </Button>
       </div>
 
-      {/* Bottom Secondary Links & Logout */}
-      <div className="p-4 border-t border-border space-y-1">
-        <Link
-          href="/help"
-          className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-all"
-        >
-          <HelpCircle className="size-4" />
-          Help & FAQs
-        </Link>
-        <Link
-          href="/settings"
-          className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-all"
-        >
-          <Settings className="size-4" />
-          Settings
-        </Link>
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-destructive hover:bg-destructive/10 transition-all cursor-pointer"
-        >
-          <LogOut className="size-4" />
-          Log Out
-        </button>
-      </div>
+      {/* Bottom Secondary Links & Logout removed per request */}
     </div>
   );
 
@@ -380,7 +347,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             href="/desk"
             className={cn(
               "relative px-4 h-full flex items-center text-sm font-medium transition-colors hover:text-foreground",
-              isTopLinkActive("/desk") || isTopLinkActive("/notes") || isTopLinkActive("/groups") || isTopLinkActive("/archive") || isTopLinkActive("/hive")
+              isTopLinkActive("/desk") || isTopLinkActive("/notes") || isTopLinkActive("/groups") || isTopLinkActive("/archive")
                 ? "text-primary border-b-2 border-primary"
                 : "text-muted-foreground"
             )}
@@ -402,7 +369,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             href="/feed"
             className={cn(
               "relative px-4 h-full flex items-center text-sm font-medium transition-colors hover:text-foreground",
-              isTopLinkActive("/feed")
+              isTopLinkActive("/feed") || isTopLinkActive("/hive") || isTopLinkActive("/hives")
                 ? "text-primary border-b-2 border-primary"
                 : "text-muted-foreground"
             )}
@@ -448,18 +415,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </Button>
           </Link>
 
-          {/* Profile Avatar icon */}
+          {/* Profile Avatar — opens profile popover */}
           {isLoadingMe ? (
             <div className="size-8 rounded-full bg-muted animate-pulse border border-border" />
           ) : (
-            <Link href="/settings">
-              <Avatar className="size-8 cursor-pointer border border-border hover:opacity-85 transition-opacity">
-                {me?.avatarUrl && <AvatarImage src={me.avatarUrl} alt={me.fullName} />}
-                <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold shadow-inner">
-                  {getUserInitials()}
-                </AvatarFallback>
-              </Avatar>
-            </Link>
+            <UserProfilePopover
+              fullName={me?.fullName}
+              avatarUrl={me?.avatarUrl}
+            />
           )}
 
         </div>

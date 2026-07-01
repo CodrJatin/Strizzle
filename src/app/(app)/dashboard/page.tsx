@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { 
   Layers, Star, CheckSquare, Sparkles, Plus, BookOpen, 
   FileText, Link2, Upload, Calendar, ShieldAlert, ArrowRight, 
@@ -12,6 +13,7 @@ import { api } from "@/lib/trpc/client";
 import { useQuickAddStore } from "@/store/quickAddStore";
 import { LibraryMaterialCard, type LibraryItem } from "@/components/LibraryMaterialCard";
 import { DeleteMaterialModal } from "@/components/DeleteMaterialModal";
+import { CreateHiveModal } from "@/components/CreateHiveModal";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -20,8 +22,10 @@ import {
   DialogContent, 
   DialogHeader, 
   DialogTitle, 
-  DialogDescription 
+  DialogDescription,
+  DialogFooter
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 
 const themeStyles: Record<string, { bg: string; text: string; border: string; accent: string; ring: string }> = {
   blue: {
@@ -64,10 +68,15 @@ const themeStyles: Record<string, { bg: string; text: string; border: string; ac
 export default function DashboardPage() {
   const openQuickAdd = useQuickAddStore((s) => s.open);
   const supabase = createClient();
+  const router = useRouter();
+  const utils = api.useUtils();
 
   // Dialog State
   const [deletingItem, setDeletingItem] = React.useState<LibraryItem | null>(null);
   const [viewingTextItem, setViewingTextItem] = React.useState<LibraryItem | null>(null);
+
+  // Create Hive Dialog State
+  const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
 
   // Queries
   const { data: user } = api.user.getMe.useQuery(undefined, {
@@ -146,11 +155,18 @@ export default function DashboardPage() {
                 <Layers className="size-5 text-muted-foreground" />
                 Active Study Groups
               </h2>
-              {hives.length > 0 && (
-                <span className="text-xs text-muted-foreground font-semibold">
-                  Member of {hives.length} group{hives.length === 1 ? "" : "s"}
-                </span>
-              )}
+              <div className="flex items-center gap-3">
+                {hives.length > 0 && (
+                  <Button 
+                    onClick={() => setCreateDialogOpen(true)}
+                    variant="outline" 
+                    className="rounded-xl h-8.5 text-xs font-semibold border-border/60 hover:bg-muted cursor-pointer flex items-center gap-1.5 shadow-xs"
+                  >
+                    <Plus className="size-3.5" />
+                    New Hive
+                  </Button>
+                )}
+              </div>
             </div>
 
             {isLoadingHives ? (
@@ -167,10 +183,14 @@ export default function DashboardPage() {
                 </div>
                 <h3 className="text-xs font-bold text-foreground mb-1">Not in any study hives yet</h3>
                 <p className="text-[10px] text-muted-foreground max-w-xs mb-4 leading-normal">
-                  Hives are collaborative student workspaces. Hives, group sharing, and invites unlock in Phase 3.
+                  Hives are collaborative student workspaces. Create a workspace to share files, links, notes and collaborate.
                 </p>
-                <Button disabled variant="outline" className="text-xs rounded-xl h-8 px-4 border-border/60 text-muted-foreground">
-                  Create a Hive (Phase 3)
+                <Button 
+                  onClick={() => setCreateDialogOpen(true)} 
+                  variant="outline" 
+                  className="text-xs rounded-xl h-8.5 px-4 border-border/60 text-foreground cursor-pointer shadow-xs hover:bg-muted"
+                >
+                  Create a Hive
                 </Button>
               </div>
             ) : (
@@ -181,8 +201,13 @@ export default function DashboardPage() {
                   return (
                     <div 
                       key={item.id}
+                      onClick={() => router.push(`/hive/${item.id}/overview`)}
+                      onMouseEnter={() => {
+                        utils.hive.getHive.prefetch({ hiveId: item.id });
+                        utils.hive.getHiveOverview.prefetch({ hiveId: item.id });
+                      }}
                       className={cn(
-                        "group p-5 border bg-card rounded-2xl flex flex-col justify-between h-36 transition-all hover:shadow-xs",
+                        "group p-5 border bg-card rounded-2xl flex flex-col justify-between h-36 transition-all hover:shadow-md cursor-pointer hover:border-primary/30",
                         styles.border
                       )}
                     >
@@ -213,9 +238,9 @@ export default function DashboardPage() {
                           Created {new Date(item.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
                         </span>
                         
-                        <Button disabled variant="ghost" size="icon-sm" className="size-7 rounded-lg text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="size-7 rounded-lg text-muted-foreground opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center hover:bg-muted/80">
                           <ArrowRight className="size-4" />
-                        </Button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -379,6 +404,12 @@ export default function DashboardPage() {
           onClose={() => setDeletingItem(null)}
         />
       )}
+
+      {/* Create Hive Dialog */}
+      <CreateHiveModal
+        isOpen={createDialogOpen}
+        onClose={() => setCreateDialogOpen(false)}
+      />
 
     </div>
   );

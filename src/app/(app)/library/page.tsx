@@ -3,7 +3,7 @@
 import * as React from "react";
 import { 
   BookOpen, Search, Star, LayoutGrid, List, Layers, Plus, 
-  HelpCircle, ArrowUpDown, ShieldAlert, Sparkles, FolderOpen, Loader2
+  HelpCircle, ArrowUpDown, ShieldAlert, Sparkles, FolderOpen, Loader2, FileText
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -15,6 +15,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { Card, CardContent } from "@/components/ui/card";
 import { 
   Dialog, 
   DialogContent, 
@@ -87,10 +88,47 @@ export default function LibraryPage() {
     }
   );
 
+  // tRPC Query for Hive Materials
+  const { data: hiveMaterials, isLoading: isLoadingHiveMaterials, refetch: refetchHiveMaterials } = 
+    api.library.getHiveMaterialsForLibrary.useQuery(undefined, {
+      staleTime: 120000,
+    });
+
+  const addToLibraryMutation = api.library.addToLibrary.useMutation({
+    onSuccess: () => {
+      toast.success("Copied to your personal library!");
+      refetch();
+      refetchHiveMaterials();
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to copy material.");
+    },
+  });
+
   const items = data?.pages.flatMap((page) => page.items) || [];
 
+  // Group hive materials by hiveId for sidebar
+  const groupedHiveMaterials = React.useMemo(() => {
+    if (!hiveMaterials) return [];
+    const groups: Record<string, { hiveId: string; hiveName: string; hiveCode: string | null; items: typeof hiveMaterials }> = {};
+    
+    hiveMaterials.forEach((item) => {
+      if (!groups[item.hiveId]) {
+        groups[item.hiveId] = {
+          hiveId: item.hiveId,
+          hiveName: item.hiveName,
+          hiveCode: item.hiveCode,
+          items: [],
+        };
+      }
+      groups[item.hiveId].items.push(item);
+    });
+    
+    return Object.values(groups);
+  }, [hiveMaterials]);
+
   const handleRefresh = async () => {
-    await refetch();
+    await Promise.all([refetch(), refetchHiveMaterials()]);
     toast.success("Library updated");
   };
 
@@ -316,32 +354,92 @@ export default function LibraryPage() {
           )}
         </div>
 
-        {/* Right Sidebar: From My Hives placeholder */}
+        {/* Right Sidebar: From My Hives */}
         <div className="lg:col-span-1 space-y-6 shrink-0">
-          <h2 className="text-lg font-bold tracking-tight text-foreground">From My Hives</h2>
+          <h2 className="text-lg font-bold tracking-tight text-foreground flex items-center justify-between">
+            From My Hives
+            {isLoadingHiveMaterials && <Loader2 className="size-4 animate-spin text-primary" />}
+          </h2>
           
-          <div className="border border-border/60 bg-card rounded-2xl p-5 shadow-xs text-center space-y-4">
-            <div className="size-11 rounded-xl bg-indigo-500/10 text-indigo-500 border border-indigo-500/10 flex items-center justify-center mx-auto shadow-inner">
-              <ShieldAlert className="size-5.5" />
+          {isLoadingHiveMaterials ? (
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, idx) => (
+                <div key={idx} className="h-24 w-full bg-muted/40 rounded-2xl animate-pulse" />
+              ))}
             </div>
-            
-            <div className="space-y-1">
-              <h3 className="text-sm font-bold text-foreground flex items-center gap-1.5 justify-center">
-                Study Hives <Sparkles className="size-3.5 text-indigo-500" />
-              </h3>
-              <p className="text-[11px] text-muted-foreground leading-normal max-w-[200px] mx-auto">
-                Hives are scheduled for Phase 3. Here you will see shared resources from your hives, sorted by course code.
-              </p>
+          ) : groupedHiveMaterials.length === 0 ? (
+            <div className="border border-border/60 bg-card rounded-2xl p-5 shadow-xs text-center space-y-4">
+              <div className="size-11 rounded-xl bg-indigo-500/10 text-indigo-500 border border-indigo-500/10 flex items-center justify-center mx-auto shadow-inner">
+                <Layers className="size-5.5" />
+              </div>
+              
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-foreground">No shared materials</h3>
+                <p className="text-[11px] text-muted-foreground leading-normal max-w-[200px] mx-auto">
+                  Resources shared by classmates in your active hives will appear here.
+                </p>
+              </div>
             </div>
+          ) : (
+            <div className="space-y-6">
+              {groupedHiveMaterials.map((group) => (
+                <div key={group.hiveId} className="space-y-3">
+                  {/* Hive Section Header */}
+                  <h3 className="text-[10px] font-extrabold text-muted-foreground tracking-wider uppercase px-1 flex items-center gap-1.5 leading-none">
+                    <Layers className="size-3.5 text-primary shrink-0" />
+                    <span className="truncate">{group.hiveCode ? `${group.hiveCode} - ` : ""}{group.hiveName}</span>
+                  </h3>
 
-            <Button
-              variant="outline"
-              disabled
-              className="w-full text-xs rounded-xl h-9 hover:bg-muted border-border/60 text-muted-foreground font-semibold"
-            >
-              Locked (Phase 3)
-            </Button>
-          </div>
+                  {/* Materials Stack */}
+                  <div className="space-y-2">
+                    {group.items.map((item) => {
+                      const m = item.material;
+                      return (
+                        <Card 
+                          key={item.shareId} 
+                          className="group relative border-border/55 shadow-xs bg-card hover:shadow-sm rounded-xl overflow-hidden transition-all duration-200"
+                        >
+                          <CardContent className="p-3 flex items-center gap-3">
+                            {/* Small Icon Badge */}
+                            <div className="size-9 rounded-lg bg-muted/40 border border-border/40 flex items-center justify-center shrink-0">
+                              <FileText className="size-4.5 text-muted-foreground" />
+                            </div>
+
+                            {/* Details */}
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-xs font-bold text-foreground truncate" title={m.title || "Untitled"}>
+                                {m.title || "Untitled shared material"}
+                              </h4>
+                              <p className="text-[10px] text-muted-foreground mt-0.5 truncate uppercase">
+                                {m.contentType}
+                              </p>
+                            </div>
+                          </CardContent>
+
+                          {/* Hover Overlay with Copy to Library */}
+                          <div className="absolute inset-0 bg-background/90 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center justify-center gap-2 px-3">
+                            <Button
+                              onClick={() => addToLibraryMutation.mutate({ materialId: m.id })}
+                              variant="default"
+                              size="xs"
+                              disabled={addToLibraryMutation.isPending}
+                              className="h-7 text-[10px] font-bold rounded-lg shadow-sm w-full"
+                            >
+                              {addToLibraryMutation.isPending ? (
+                                <Loader2 className="size-3 animate-spin" />
+                              ) : (
+                                "Copy to Library"
+                              )}
+                            </Button>
+                          </div>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
       </div>
