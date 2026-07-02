@@ -67,7 +67,7 @@ interface CalendarPageProps {
   defaultView?: "month" | "week" | "day" | "deadlines";
 }
 
-export default function CalendarPage({ defaultView }: CalendarPageProps) {
+function CalendarPageContent({ defaultView }: CalendarPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const utils = api.useUtils();
@@ -711,5 +711,20 @@ export default function CalendarPage({ defaultView }: CalendarPageProps) {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function CalendarPage(props: CalendarPageProps) {
+  return (
+    <React.Suspense fallback={
+      <div className="flex min-h-[60vh] items-center justify-center p-4">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-xs text-muted-foreground font-semibold animate-pulse">Loading calendar...</p>
+        </div>
+      </div>
+    }>
+      <CalendarPageContent {...props} />
+    </React.Suspense>
   );
 }
