@@ -1,14 +1,13 @@
-import { z } from 'zod';
 import { createTRPCRouter, protectedProcedure } from '../trpc';
 import { users, userPreferences } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
-
-export const completeOnboardingSchema = z.object({
-  fullName: z.string().min(1, "Full name is required").max(100),
-  avatarUrl: z.string().nullable(),
-  theme: z.string().default('default'),
-});
+import { cookies } from 'next/headers';
+import {
+  completeOnboardingSchema,
+  updatePreferencesSchema,
+  updateProfileSchema,
+} from '@/types/user';
 
 export const userRouter = createTRPCRouter({
   getMe: protectedProcedure.query(async ({ ctx }) => {
@@ -30,6 +29,7 @@ export const userRouter = createTRPCRouter({
 
     return {
       ...user,
+      email: ctx.user.email ?? null,
       preferences: preferences || null,
     };
   }),
@@ -67,12 +67,117 @@ export const userRouter = createTRPCRouter({
               },
             });
         });
+
+        // Set the theme cookie upon successful onboarding
+        const cookieStore = await cookies();
+        cookieStore.set('strizzle-theme', input.theme, {
+          path: '/',
+          maxAge: 60 * 60 * 24 * 365, // 1 year
+          sameSite: 'lax',
+          secure: process.env.NODE_ENV === 'production',
+        });
+
         return { success: true };
       } catch (error) {
         console.error("Failed to complete onboarding", error);
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
           message: 'Failed to complete onboarding. Please try again.',
+        });
+      }
+    }),
+
+  getPreferences: protectedProcedure.query(async ({ ctx }) => {
+    const [preferences] = await ctx.db
+      .select()
+      .from(userPreferences)
+      .where(eq(userPreferences.userId, ctx.user.id))
+      .limit(1);
+
+    if (!preferences) {
+      return {
+        theme: 'default',
+        defaultCalView: 'week',
+      };
+    }
+
+    return preferences;
+  }),
+
+  updatePreferences: protectedProcedure
+    .input(updatePreferencesSchema)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        const updateData: Partial<typeof userPreferences.$inferInsert> = {
+          updatedAt: new Date(),
+        };
+
+        if (input.theme !== undefined) {
+          updateData.theme = input.theme;
+        }
+        if (input.defaultCalView !== undefined) {
+          updateData.defaultCalView = input.defaultCalView;
+        }
+
+        const [result] = await ctx.db
+          .insert(userPreferences)
+          .values({
+            userId: ctx.user.id,
+            theme: input.theme || 'default',
+            defaultCalView: input.defaultCalView || 'week',
+          })
+          .onConflictDoUpdate({
+            target: userPreferences.userId,
+            set: updateData,
+          })
+          .returning();
+
+        // If theme is updated, sync it to the cookie
+        if (input.theme !== undefined) {
+          const cookieStore = await cookies();
+          cookieStore.set('strizzle-theme', input.theme, {
+            path: '/',
+            maxAge: 60 * 60 * 24 * 365, // 1 year
+            sameSite: 'lax',
+            secure: process.env.NODE_ENV === 'production',
+          });
+        }
+
+        return result;
+      } catch (error) {
+        console.error("Failed to update preferences", error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to update preferences. Please try again.',
+        });
+      }
+    }),
+
+  updateProfile: protectedProcedure
+    .input(updateProfileSchema)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        const updateData: Record<string, any> = {
+          fullName: input.fullName,
+          updatedAt: new Date(),
+        };
+
+        if (input.avatarUrl !== undefined) {
+          updateData.avatarUrl = input.avatarUrl;
+        }
+
+        const [result] = await ctx.db
+          .update(users)
+          .set(updateData)
+          .where(eq(users.id, ctx.user.id))
+          .returning();
+
+        return result;
+      } catch (error) {
+        console.error("Failed to update profile", error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to update profile. Please try again.',
         });
       }
     }),

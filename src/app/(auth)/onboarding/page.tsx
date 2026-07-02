@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import { Brand } from "@/components/Brand";
 import { api } from "@/lib/trpc/client";
+import { useThemeStore } from "@/store/themeStore";
 
 // Step 1 schema
 const nameSchema = z.object({
@@ -40,6 +41,8 @@ function OnboardingContent() {
   const [selectedTheme, setSelectedTheme] = React.useState<string>("default");
   const [matchSystem, setMatchSystem] = React.useState<boolean>(false);
   const [isAuthChecking, setIsAuthChecking] = React.useState(true);
+
+  const setTheme = useThemeStore((s) => s.setTheme);
 
   // tRPC calls
   const utils = api.useUtils();
@@ -439,7 +442,10 @@ function OnboardingContent() {
                   {/* Theme 1: Light */}
                   <div
                     onClick={() => {
-                      if (!matchSystem) setSelectedTheme("default");
+                      if (!matchSystem) {
+                        setSelectedTheme("default");
+                        setTheme("default");
+                      }
                     }}
                     className={cn(
                       "group flex flex-col gap-2 cursor-pointer rounded-2xl border p-2 transition-all",
@@ -468,7 +474,10 @@ function OnboardingContent() {
                   {/* Theme 2: Dark */}
                   <div
                     onClick={() => {
-                      if (!matchSystem) setSelectedTheme("dark");
+                      if (!matchSystem) {
+                        setSelectedTheme("dark");
+                        setTheme("dark");
+                      }
                     }}
                     className={cn(
                       "group flex flex-col gap-2 cursor-pointer rounded-2xl border p-2 transition-all",
@@ -496,7 +505,10 @@ function OnboardingContent() {
                   {/* Theme 3: Sepia */}
                   <div
                     onClick={() => {
-                      if (!matchSystem) setSelectedTheme("sepia");
+                      if (!matchSystem) {
+                        setSelectedTheme("sepia");
+                        setTheme("sepia");
+                      }
                     }}
                     className={cn(
                       "group flex flex-col gap-2 cursor-pointer rounded-2xl border p-2 transition-all",
@@ -524,7 +536,10 @@ function OnboardingContent() {
                   {/* Theme 4: High Contrast */}
                   <div
                     onClick={() => {
-                      if (!matchSystem) setSelectedTheme("high-contrast");
+                      if (!matchSystem) {
+                        setSelectedTheme("high-contrast");
+                        setTheme("high-contrast");
+                      }
                     }}
                     className={cn(
                       "group flex flex-col gap-2 cursor-pointer rounded-2xl border p-2 transition-all",
@@ -564,7 +579,11 @@ function OnboardingContent() {
                     <input
                       type="checkbox"
                       checked={matchSystem}
-                      onChange={(e) => setMatchSystem(e.target.checked)}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setMatchSystem(checked);
+                        setTheme(checked ? "system" : selectedTheme);
+                      }}
                       className="sr-only peer"
                     />
                     <div className="w-9 h-5 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-background after:border-border after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary" />

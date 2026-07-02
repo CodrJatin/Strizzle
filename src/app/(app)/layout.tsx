@@ -7,7 +7,7 @@ import {
   Search, Bell, Settings, Menu, Plus, Calendar,
   Home, Layers, FileText, Users, Archive, BookOpen, 
   FolderOpen, Star, Folder, Rss, CheckSquare, 
-  GitPullRequest, Palette, Shield, User, Loader2
+  GitPullRequest, Palette, Shield, User, Loader2, AlertCircle
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -148,10 +148,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       subtitle: "Preferences",
       icon: Settings,
       links: [
-        { label: "Profile Settings", href: "/settings", icon: User },
-        { label: "Appearance", href: "/settings/appearance", icon: Palette },
-        { label: "Accounts", href: "/settings/accounts", icon: Shield },
+        { label: "Profile", href: "/settings", icon: User },
+        { label: "Preferences", href: "/settings/preferences", icon: Palette },
         { label: "Notifications", href: "/settings/notifications", icon: Bell },
+        { label: "Offline Storage", href: "/settings/offline", icon: Archive },
+        { label: "Danger Zone", href: "/settings/danger", icon: AlertCircle },
       ],
       actionLabel: "Save Config",
     },
@@ -270,7 +271,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Nav Links */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {activeConfig.links.map((link) => {
-          const isActive = pathname === link.href || (link.href !== "/dashboard" && link.href !== "/" && pathname.startsWith(link.href));
+          const isActive =
+            pathname === link.href ||
+            (link.href !== "/dashboard" &&
+              link.href !== "/" &&
+              link.href !== "/settings" &&
+              pathname.startsWith(link.href));
           return (
             <Link
               key={link.label}
