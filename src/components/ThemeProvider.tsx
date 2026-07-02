@@ -35,5 +35,23 @@ export function ThemeProvider({ children, initialTheme }: ThemeProviderProps) {
     };
   }, [theme, setTheme]);
 
+  // Register service worker for PWA capabilities
+  React.useEffect(() => {
+    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        if (registrations.length === 0) {
+          navigator.serviceWorker
+            .register("/sw.js")
+            .then((registration) => {
+              console.log("Serwist Service Worker registered with scope:", registration.scope);
+            })
+            .catch((err) => {
+              console.error("Serwist Service Worker registration failed:", err);
+            });
+        }
+      });
+    }
+  }, []);
+
   return <>{children}</>;
 }

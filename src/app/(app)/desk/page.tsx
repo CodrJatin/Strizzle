@@ -19,11 +19,77 @@ export default function DeskPage() {
   const [selectedItem, setSelectedItem] = React.useState<ShelfItem | null>(null);
   const [actionModalOpen, setActionModalOpen] = React.useState(false);
 
+  // tRPC mutations for processing pending shares
+  const createTextMaterial = api.material.createTextMaterial.useMutation();
+  const createLinkMaterial = api.material.createLinkMaterial.useMutation();
+  const createShelfItem = api.shelf.createShelfItem.useMutation();
+
   // Fetch captured shelf items with explicit staleTime (120,000ms as per AGENTS.md staleTime reference table for standard data)
   const { data: items, isLoading, isRefetching, refetch } = api.shelf.getShelfItems.useQuery(undefined, {
     staleTime: 120000,
     refetchOnWindowFocus: true,
   });
+
+  // 1. Process unauthenticated Web Share Target cookie on load
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const match = document.cookie.match(/(^|;)\s*strizzle-share-payload\s*=\s*([^;]+)/);
+    if (match) {
+      try {
+        const payload = JSON.parse(decodeURIComponent(match[2])) as {
+          title?: string;
+          text?: string;
+          url?: string;
+          hasFiles?: boolean;
+        };
+        // Expire the cookie immediately
+        document.cookie = "strizzle-share-payload=; path=/; max-age=0; SameSite=Lax";
+
+        const processShare = async () => {
+          if (payload.url) {
+            const mat = await createLinkMaterial.mutateAsync({
+              url: payload.url,
+            });
+            await createShelfItem.mutateAsync({ materialId: mat.id });
+          } else if (payload.text) {
+            const mat = await createTextMaterial.mutateAsync({
+              body: payload.text,
+              title: payload.title || undefined,
+            });
+            await createShelfItem.mutateAsync({ materialId: mat.id });
+          }
+          if (payload.hasFiles) {
+            toast.warning("Files must be shared while logged in. Please try sharing again.");
+          }
+          await utils.shelf.getShelfItems.invalidate();
+        };
+
+        toast.promise(processShare(), {
+          loading: "Saving shared content to your Desk...",
+          success: "Shared content saved successfully!",
+          error: "Failed to save shared content.",
+        });
+      } catch (err) {
+        console.error("Failed to parse share-target payload:", err);
+      }
+    }
+  }, [utils, createTextMaterial, createLinkMaterial, createShelfItem]);
+
+  // 2. Process direct authenticated Web Share Target redirect query params
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get("shareSuccess") === "true") {
+      toast.success("Shared content captured to Desk!");
+      window.history.replaceState({}, "", window.location.pathname);
+      utils.shelf.getShelfItems.invalidate();
+    } else if (searchParams.get("shareError") === "true") {
+      toast.error("Failed to capture shared content.");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [utils]);
 
   // Callback when a card's "Organize..." or main body is clicked (opens action modal - Task 2.11)
   const handleActionClick = (item: ShelfItem) => {

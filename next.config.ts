@@ -1,11 +1,18 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
+import withSerwistInit from "@serwist/next";
+
+const withSerwist = withSerwistInit({
+  swSrc: "src/sw.ts",
+  swDest: "public/sw.js",
+  disable: process.env.NODE_ENV === "development",
+});
 
 const nextConfig: NextConfig = {
   /* config options here */
 };
 
-export default withSentryConfig(nextConfig, {
+const sentryWrappedConfig = withSentryConfig(nextConfig, {
   // For all available options, see:
   // https://github.com/getsentry/sentry-webpack-plugin#options
 
@@ -22,3 +29,5 @@ export default withSentryConfig(nextConfig, {
   // Automatically tree-shake Sentry logger statements to reduce bundle size
   disableLogger: true,
 });
+
+export default withSerwist(sentryWrappedConfig);
