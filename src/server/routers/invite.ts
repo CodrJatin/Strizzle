@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { createTRPCRouter, protectedProcedure, publicProcedure, enforceRole } from '../trpc';
 import { hives, hiveInvites, hiveMembers } from '@/db/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, sql } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
 import { logActivity } from '../lib/logActivity';
 import { sendInviteEmail } from '../email/sendInviteEmail';
@@ -28,6 +28,7 @@ export const inviteRouter = createTRPCRouter({
             maxUses: hiveInvites.maxUses,
             useCount: hiveInvites.useCount,
             hiveName: hives.name,
+            courseCode: hives.courseCode,
             hiveId: hiveInvites.hiveId,
           })
           .from(hiveInvites)
@@ -57,9 +58,16 @@ export const inviteRouter = createTRPCRouter({
           isAlreadyMember = !!member;
         }
 
+        const [memberCountResult] = await ctx.db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(hiveMembers)
+          .where(eq(hiveMembers.hiveId, invite.hiveId));
+        const memberCount = memberCountResult?.count || 0;
+
         return {
           ...invite,
           isAlreadyMember,
+          memberCount,
         };
       } catch (error) {
         if (error instanceof TRPCError) throw error;

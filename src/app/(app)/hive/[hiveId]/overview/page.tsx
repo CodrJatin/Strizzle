@@ -137,9 +137,26 @@ export default function OverviewPage({ params }: PageProps) {
 
   const [addedCalendars, setAddedCalendars] = React.useState<Record<string, boolean>>({});
 
-  const handleAddToCalendar = (taskId: string) => {
-    setAddedCalendars((prev) => ({ ...prev, [taskId]: true }));
-    toast.success("Added to your personal calendar!");
+  const addToCalendarMutation = api.task.addToCalendar.useMutation({
+    onSuccess: (data, variables) => {
+      setAddedCalendars((prev) => ({ ...prev, [variables.sourceRefId]: true }));
+      toast.success("Added to your personal calendar!");
+      utils.calendar.getCalendarTasks.invalidate();
+      utils.task.getMyTasks.invalidate();
+    },
+    onError: () => {
+      toast.error("Failed to add deadline to calendar.");
+    }
+  });
+
+  const handleAddToCalendar = (task: any) => {
+    if (!task.dueAt) return;
+    addToCalendarMutation.mutate({
+      sourceRefId: task.id,
+      title: task.title,
+      dueAt: new Date(task.dueAt).toISOString(),
+      hiveId: hiveId,
+    });
   };
 
   // Loading states
@@ -398,7 +415,7 @@ export default function OverviewPage({ params }: PageProps) {
                         </span>
                       ) : (
                         <Button 
-                          onClick={() => handleAddToCalendar(task.id)}
+                          onClick={() => handleAddToCalendar(task)}
                           variant="outline" 
                           className="h-7 text-[10px] font-semibold px-2.5 rounded-lg border-border hover:bg-muted bg-card shadow-sm cursor-pointer"
                         >

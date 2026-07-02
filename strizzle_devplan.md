@@ -114,14 +114,14 @@ strizzle is a greenfield build. There is no V1 to maintain, migrate from, or be 
 | 2.16 | Optimistic updates — Phase 2 | Apply to: createShelfItem, deleteShelfItem, moveToLibrary, starMaterial, unstarMaterial, deleteMaterial. Each: cancel inflight → snapshot → setData → onError rollback → toast.error | 1d |
 
 ### Deliverables
-- [ ] SHA-256 content-addressable file upload with dedup via storage_objects
-- [ ] All 5 material types: text, link, youtube (oEmbed), file, image
-- [ ] Desk page with FAB quick-add: text, URL (live OG preview), file upload
-- [ ] Desk item action modal with all conversion flows and lifecycle choice
-- [ ] Library page: personal materials with search, filter, sort, star
-- [ ] Dashboard: starred panel, empty-state hive grid, My Tasks placeholder
-- [ ] Global search Command Palette (Cmd+K) with attach mode
-- [ ] Optimistic updates on all Phase 2 mutations
+- [x] SHA-256 content-addressable file upload with dedup via storage_objects
+- [x] All 5 material types: text, link, youtube (oEmbed), file, image
+- [x] Desk page with FAB quick-add: text, URL (live OG preview), file upload
+- [x] Desk item action modal with all conversion flows and lifecycle choice
+- [x] Library page: personal materials with search, filter, sort, star
+- [x] Dashboard: starred panel, empty-state hive grid, My Tasks placeholder
+- [x] Global search Command Palette (Cmd+K) with attach mode
+- [x] Optimistic updates on all Phase 2 mutations
 
 ---
 
@@ -161,13 +161,13 @@ strizzle is a greenfield build. There is no V1 to maintain, migrate from, or be 
 | 3.18 | Create Hive dialog | Dialog from "New Hive" button. Name, description, course code, color theme picker. Optimistic dashboard grid update | 0.5d |
 
 ### Deliverables
-- [ ] Full hive CRUD with role enforcement at tRPC + RLS
-- [ ] Invite system: generate, accept, revoke, Resend email
-- [ ] Hive overview: header, announcements, deadlines, live activity feed
-- [ ] Hive materials: share from library/desk, OG preview cards, folder structure
-- [ ] Library "From My Hives" section populated
-- [ ] Dashboard hive cards with hover prefetch
-- [ ] Hive Settings: general, members, sharing, feed config, danger zone
+- [x] Full hive CRUD with role enforcement at tRPC + RLS
+- [x] Invite system: generate, accept, revoke, Resend email
+- [x] Hive overview: header, announcements, deadlines, live activity feed
+- [x] Hive materials: share from library/desk, OG preview cards, folder structure
+- [x] Library "From My Hives" section populated
+- [x] Dashboard hive cards with hover prefetch
+- [x] Hive Settings: general, members, sharing, feed config, danger zone
 
 ---
 
@@ -199,12 +199,12 @@ strizzle is a greenfield build. There is no V1 to maintain, migrate from, or be 
 | 4.12 | Task block drag to reschedule | @dnd-kit on calendar. Drop → updateTask({dueAt: newDateTime}) optimistic. Snap to 15min | 0.5d |
 
 ### Deliverables
-- [ ] Hive Tasks kanban with drag-and-drop and keyboard alternative
-- [ ] TaskDetailModal with material references via global search attach mode
-- [ ] Hive Syllabus: tree, per-member checkbox, progress bars, admin stats, dnd reorder
-- [ ] Calendar: week/day/month views
-- [ ] "Add to Calendar" with source_ref_id dedup
-- [ ] Dashboard My Tasks fully wired
+- [x] Hive Tasks kanban with drag-and-drop and keyboard alternative
+- [x] TaskDetailModal with material references via global search attach mode
+- [x] Hive Syllabus: tree, per-member checkbox, progress bars, admin stats, dnd reorder
+- [x] Calendar: week/day/month views
+- [x] "Add to Calendar" with source_ref_id dedup
+- [x] Dashboard My Tasks fully wired
 
 ---
 

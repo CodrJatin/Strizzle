@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
-  Search, Bell, Settings, Menu, Plus,
+  Search, Bell, Settings, Menu, Plus, Calendar,
   Home, Layers, FileText, Users, Archive, BookOpen, 
   FolderOpen, Star, Folder, Rss, CheckSquare, 
   GitPullRequest, Palette, Shield, User, Loader2
@@ -62,9 +62,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (pathname.startsWith("/desk")) {
       return { type: "desk" };
     }
-    if (pathname.startsWith("/calendar")) {
-      return { type: "calendar" };
-    }
     if (pathname.startsWith("/settings")) {
       return { type: "settings" };
     }
@@ -90,6 +87,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       icon: Layers,
       links: [
         { label: "Home", href: "/dashboard", icon: Home },
+        { label: "Calendar", href: "/calendar", icon: Calendar },
+        { label: "Deadlines", href: "/calendar/deadlines", icon: CheckSquare },
         { label: "My Workspace", href: "/desk", icon: Layers },
         { label: "Course Notes", href: "/notes", icon: FileText },
         { label: "Archive", href: "/archive", icon: Archive },
@@ -243,7 +242,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // Check top link active states
   const isTopLinkActive = (pathPrefix: string) => {
     if (pathPrefix === "/dashboard") {
-      return pathname === "/dashboard" || pathname === "/";
+      return pathname === "/dashboard" || pathname === "/" || pathname.startsWith("/calendar");
     }
     return pathname.startsWith(pathPrefix);
   };

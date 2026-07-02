@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { 
   Layers, Star, CheckSquare, Sparkles, Plus, BookOpen, 
   FileText, Link2, Upload, Calendar, ShieldAlert, ArrowRight, 
-  Clock, CheckCircle, Tag
+  Clock, CheckCircle, Tag, Loader2
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -26,6 +26,8 @@ import {
   DialogFooter
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { TaskDetailModal } from "@/components/TaskDetailModal";
 
 const themeStyles: Record<string, { bg: string; text: string; border: string; accent: string; ring: string }> = {
   blue: {
@@ -97,6 +99,40 @@ export default function DashboardPage() {
 
   const hives = hivesData || [];
   const starredItems = starredData?.items || [];
+
+  const [selectedTaskId, setSelectedTaskId] = React.useState<string | null>(null);
+
+  const { data: myTasks = [], isLoading: isLoadingTasks } = api.task.getMyTasks.useQuery(undefined, {
+    staleTime: 120000,
+  });
+
+  const toggleTaskStatus = api.task.updateTask.useMutation({
+    onMutate: async (updated) => {
+      await utils.task.getMyTasks.cancel();
+      const previous = utils.task.getMyTasks.getData();
+
+      utils.task.getMyTasks.setData(undefined, (old) => {
+        if (!old) return old;
+        if (updated.status === 'done') {
+          return old.filter((t) => t.id !== updated.id);
+        }
+        return old.map((t) => (t.id === updated.id ? { ...t, ...updated } : t)) as any;
+      });
+
+      return { previous };
+    },
+    onSuccess: () => {
+      utils.task.getMyTasks.invalidate();
+      utils.task.getUpcomingDeadlines.invalidate();
+      utils.calendar.getCalendarTasks.invalidate();
+    },
+    onError: (_err, _updated, context) => {
+      if (context?.previous) {
+        utils.task.getMyTasks.setData(undefined, context.previous);
+      }
+      toast.error("Failed to update task.");
+    },
+  });
 
   return (
     <div className="space-y-10 font-sans max-w-7xl mx-auto pb-12 min-w-0">
@@ -302,7 +338,7 @@ export default function DashboardPage() {
 
         </div>
 
-        {/* Right Column (Span 1): Sidebar Tasks placeholder */}
+        {/* Right Column (Span 1): Sidebar Tasks */}
         <div className="lg:col-span-1 space-y-6">
           <div className="space-y-4">
             <h2 className="text-lg font-bold tracking-tight text-foreground flex items-center gap-2 border-b border-border/40 pb-3">
@@ -310,46 +346,96 @@ export default function DashboardPage() {
               Tasks & Deadlines
             </h2>
 
-            {/* Premium task manager placeholder */}
             <div className="border border-border/60 bg-card rounded-2xl p-5 shadow-xs space-y-4">
-              <div className="size-11 rounded-xl bg-indigo-500/10 text-indigo-500 border border-indigo-500/10 flex items-center justify-center mx-auto shadow-inner">
-                <ShieldAlert className="size-5.5" />
-              </div>
-              
-              <div className="space-y-1 text-center">
-                <h3 className="text-sm font-bold text-foreground">Task Manager</h3>
-                <p className="text-[11px] text-muted-foreground leading-normal max-w-[200px] mx-auto">
-                  Keep track of exams, milestones, and syllabus homework. The calendar and task manager are scheduled for Phase 3.
-                </p>
-              </div>
-
-              {/* Mock placeholder list */}
-              <div className="space-y-2.5 pt-2 border-t border-border/40">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Upcoming Mock Tasks</p>
-                
-                <div className="flex items-center gap-2.5 p-2.5 border border-border/50 rounded-xl bg-muted/20 opacity-60">
-                  <Clock className="size-3.5 text-orange-500 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[11px] font-semibold text-foreground truncate">Midterm Exam Review</p>
-                    <p className="text-[9px] text-muted-foreground mt-0.5">Due in 3 days</p>
+              {isLoadingTasks ? (
+                <div className="flex flex-col items-center justify-center py-8 gap-2">
+                  <Loader2 className="size-5 text-primary animate-spin" />
+                  <p className="text-[10px] text-muted-foreground font-bold">Loading tasks...</p>
+                </div>
+              ) : myTasks.length === 0 ? (
+                <div className="space-y-4 text-center py-6">
+                  <div className="size-11 rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/10 flex items-center justify-center mx-auto shadow-inner">
+                    <CheckCircle className="size-5.5" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-xs font-bold text-foreground">All caught up!</h3>
+                    <p className="text-[10px] text-muted-foreground leading-normal max-w-[180px] mx-auto">
+                      No upcoming tasks or deadlines assigned to you.
+                    </p>
                   </div>
                 </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">My Active Tasks ({myTasks.length})</p>
+                  <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
+                    {myTasks.map((task) => {
+                      const dueAtDate = task.dueAt ? new Date(task.dueAt) : null;
+                      const isOverdue = dueAtDate && dueAtDate < new Date();
+                      const formattedDue = dueAtDate
+                        ? dueAtDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+                        : null;
+                      const style = task.colorTheme && themeStyles[task.colorTheme]
+                        ? themeStyles[task.colorTheme]
+                        : themeStyles.blue;
 
-                <div className="flex items-center gap-2.5 p-2.5 border border-border/50 rounded-xl bg-muted/20 opacity-60">
-                  <CheckCircle className="size-3.5 text-emerald-500 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[11px] font-semibold text-foreground truncate">Read Chapter 3-4</p>
-                    <p className="text-[9px] text-muted-foreground mt-0.5">Completed</p>
+                      return (
+                        <div 
+                          key={task.id}
+                          className="flex items-start gap-3 p-3 border border-border/60 rounded-xl bg-surface hover:bg-muted/15 transition-all group/task"
+                        >
+                          <Checkbox
+                            checked={task.status === "done"}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                toggleTaskStatus.mutate({ id: task.id, status: "done" });
+                              }
+                            }}
+                            className="mt-0.5 rounded-[4px] cursor-pointer"
+                          />
+                          <div 
+                            className="min-w-0 flex-1 cursor-pointer"
+                            onClick={() => setSelectedTaskId(task.id)}
+                          >
+                            <p className="text-[11px] font-bold text-foreground leading-snug truncate group-hover/task:text-primary transition-all">
+                              {task.title}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                              {/* Hive Badge */}
+                              {task.hiveId && (
+                                <span className={cn(
+                                  "text-[8px] font-bold uppercase px-1 rounded-sm border shrink-0",
+                                  style.bg,
+                                  style.text,
+                                  style.border
+                                )}>
+                                  {task.courseCode || task.hiveName}
+                                </span>
+                              )}
+                              {/* Due date */}
+                              {formattedDue && (
+                                <span className={cn(
+                                  "text-[9px] font-semibold flex items-center gap-1 shrink-0",
+                                  isOverdue ? "text-rose-600 dark:text-rose-500 font-bold" : "text-muted-foreground"
+                                )}>
+                                  <Clock className="size-2.5 shrink-0" />
+                                  {formattedDue}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              </div>
+              )}
 
               <Button
                 variant="outline"
-                disabled
-                className="w-full text-xs rounded-xl h-9 hover:bg-muted border-border/60 text-muted-foreground font-semibold"
+                onClick={() => router.push("/calendar")}
+                className="w-full text-xs rounded-xl h-9 hover:bg-muted border-border/60 text-foreground font-semibold cursor-pointer"
               >
-                Locked (Phase 3)
+                View Schedule Calendar
               </Button>
             </div>
           </div>
@@ -410,6 +496,15 @@ export default function DashboardPage() {
         isOpen={createDialogOpen}
         onClose={() => setCreateDialogOpen(false)}
       />
+
+      {/* Task Detail Modal */}
+      {selectedTaskId && (
+        <TaskDetailModal
+          taskId={selectedTaskId}
+          isOpen={!!selectedTaskId}
+          onClose={() => setSelectedTaskId(null)}
+        />
+      )}
 
     </div>
   );
