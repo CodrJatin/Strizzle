@@ -36,6 +36,7 @@ export default async function RootLayout({
       lang="en"
       className={`${inter.variable} ${geistMono.variable} h-full antialiased ${isDarkServer ? "dark" : ""}`}
       data-theme={themeCookie}
+      suppressHydrationWarning
     >
       <head>
         <script
@@ -59,7 +60,7 @@ export default async function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-full flex flex-col font-sans">
+      <body className="min-h-full flex flex-col font-sans" suppressHydrationWarning>
         <TRPCProvider>
           <ThemeProvider initialTheme={themeCookie}>
             {children}

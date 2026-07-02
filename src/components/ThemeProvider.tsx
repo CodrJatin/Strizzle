@@ -37,6 +37,8 @@ export function ThemeProvider({ children, initialTheme }: ThemeProviderProps) {
 
   // Register service worker for PWA capabilities
   React.useEffect(() => {
+    if (process.env.NODE_ENV === "development") return;
+
     if (typeof window !== "undefined" && "serviceWorker" in navigator) {
       navigator.serviceWorker.getRegistrations().then((registrations) => {
         if (registrations.length === 0) {
