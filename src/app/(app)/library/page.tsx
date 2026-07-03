@@ -39,6 +39,7 @@ type ContentTypeFilter = typeof filterPills[number]["value"];
 export default function LibraryPage() {
   const openQuickAdd = useQuickAddStore((s) => s.open);
   const supabase = createClient();
+  const utils = api.useUtils();
   
   // Search & Filtering States
   const [search, setSearch] = React.useState("");
@@ -95,14 +96,58 @@ export default function LibraryPage() {
     });
 
   const addToLibraryMutation = api.library.addToLibrary.useMutation({
+    onMutate: async (variables) => {
+      await utils.library.getLibraryMaterials.cancel();
+      const previousLibrary = utils.library.getLibraryMaterials.getInfiniteData();
+
+      // Find the material in hiveMaterials to copy
+      const copiedMaterial = hiveMaterials?.find((m) => m.material.id === variables.materialId);
+
+      if (copiedMaterial && previousLibrary) {
+        utils.library.getLibraryMaterials.setInfiniteData({}, (old: any) => {
+          if (!old) return old;
+          
+          // Construct the new LibraryItem
+          const newItem = {
+            id: "temp-copied-id-" + Math.random().toString(),
+            userId: "me",
+            materialId: variables.materialId,
+            starred: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            material: copiedMaterial.material,
+          };
+
+          // Prepend newItem to the first page's items
+          return {
+            ...old,
+            pages: old.pages.map((page: any, idx: number) => {
+              if (idx === 0) {
+                return {
+                  ...page,
+                  items: [newItem, ...page.items],
+                };
+              }
+              return page;
+            }),
+          };
+        });
+      }
+      return { previousLibrary };
+    },
+    onError: (err, _variables, context) => {
+      if (context?.previousLibrary) {
+        utils.library.getLibraryMaterials.setInfiniteData({}, context.previousLibrary);
+      }
+      toast.error(err.message || "Something went wrong. Please try again.");
+    },
     onSuccess: () => {
       toast.success("Copied to your personal library!");
-      refetch();
+    },
+    onSettled: () => {
+      utils.library.getLibraryMaterials.invalidate();
       refetchHiveMaterials();
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to copy material.");
-    },
+    }
   });
 
   const items = data?.pages.flatMap((page) => page.items) || [];

@@ -30,13 +30,27 @@ export default function ProfileSettingsPage() {
   });
 
   const updateProfileMutation = api.user.updateProfile.useMutation({
+    onMutate: async (updated) => {
+      await utils.user.getMe.cancel();
+      const previousMe = utils.user.getMe.getData();
+      utils.user.getMe.setData(undefined, (old) => {
+        if (!old) return old;
+        return { ...old, fullName: updated.fullName };
+      });
+      return { previousMe };
+    },
+    onError: (err, _variables, context) => {
+      if (context?.previousMe) {
+        utils.user.getMe.setData(undefined, context.previousMe);
+      }
+      toast.error(err.message || "Something went wrong. Please try again.");
+    },
     onSuccess: () => {
-      utils.user.getMe.invalidate();
       toast.success("Profile updated successfully");
     },
-    onError: (err) => {
-      toast.error(err.message || "Failed to update profile. Please try again.");
-    },
+    onSettled: () => {
+      utils.user.getMe.invalidate();
+    }
   });
 
   const {

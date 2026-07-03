@@ -310,47 +310,177 @@ export default function HiveSyllabusPage({ params }: PageProps) {
   });
 
   const createUnitMutation = api.syllabus.createUnit.useMutation({
+    onMutate: async (newUnit) => {
+      await utils.syllabus.getSyllabus.cancel({ hiveId });
+      const previous = utils.syllabus.getSyllabus.getData({ hiveId });
+
+      utils.syllabus.getSyllabus.setData({ hiveId }, (old) => {
+        const tempUnit = {
+          id: "temp-unit-" + Math.random().toString(),
+          title: newUnit.title,
+          hiveId,
+          position: old ? old.length : 0,
+          createdBy: "temp-creator",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          topics: [] as any[],
+        };
+        if (!old) return [tempUnit];
+        return [...old, tempUnit];
+      });
+
+      return { previous };
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previous) {
+        utils.syllabus.getSyllabus.setData({ hiveId }, context.previous);
+      }
+      toast.error("Something went wrong. Failed to create syllabus unit.");
+    },
     onSuccess: () => {
       toast.success("Syllabus unit created!");
       setUnitDialogOpen(false);
       setUnitTitle("");
-      utils.syllabus.getSyllabus.invalidate({ hiveId });
     },
-    onError: () => toast.error("Failed to create syllabus unit."),
+    onSettled: () => {
+      utils.syllabus.getSyllabus.invalidate({ hiveId });
+    }
   });
 
   const updateUnitMutation = api.syllabus.updateUnit.useMutation({
+    onMutate: async (variables) => {
+      await utils.syllabus.getSyllabus.cancel({ hiveId });
+      const previous = utils.syllabus.getSyllabus.getData({ hiveId });
+
+      utils.syllabus.getSyllabus.setData({ hiveId }, (old) => {
+        if (!old) return old;
+        return old.map((u) => u.id === variables.id ? { ...u, title: variables.title } : u);
+      });
+
+      return { previous };
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previous) {
+        utils.syllabus.getSyllabus.setData({ hiveId }, context.previous);
+      }
+      toast.error("Something went wrong. Failed to update unit.");
+    },
     onSuccess: () => {
       toast.success("Unit updated!");
       setUnitDialogOpen(false);
       setEditingUnitId(null);
       setUnitTitle("");
-      utils.syllabus.getSyllabus.invalidate({ hiveId });
     },
-    onError: () => toast.error("Failed to update unit."),
+    onSettled: () => {
+      utils.syllabus.getSyllabus.invalidate({ hiveId });
+    }
   });
 
   const deleteUnitMutation = api.syllabus.deleteUnit.useMutation({
+    onMutate: async (variables) => {
+      await utils.syllabus.getSyllabus.cancel({ hiveId });
+      const previous = utils.syllabus.getSyllabus.getData({ hiveId });
+
+      utils.syllabus.getSyllabus.setData({ hiveId }, (old) => {
+        if (!old) return old;
+        return old.filter((u) => u.id !== variables.id);
+      });
+
+      return { previous };
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previous) {
+        utils.syllabus.getSyllabus.setData({ hiveId }, context.previous);
+      }
+      toast.error("Something went wrong. Failed to delete unit.");
+    },
     onSuccess: () => {
       toast.success("Unit deleted successfully.");
-      utils.syllabus.getSyllabus.invalidate({ hiveId });
     },
-    onError: () => toast.error("Failed to delete unit."),
+    onSettled: () => {
+      utils.syllabus.getSyllabus.invalidate({ hiveId });
+    }
   });
 
   const createTopicMutation = api.syllabus.createTopic.useMutation({
+    onMutate: async (newTopic) => {
+      await utils.syllabus.getSyllabus.cancel({ hiveId });
+      const previous = utils.syllabus.getSyllabus.getData({ hiveId });
+
+      utils.syllabus.getSyllabus.setData({ hiveId }, (old) => {
+        if (!old) return old;
+        return old.map((unit) => {
+          if (unit.id !== newTopic.unitId) return unit;
+          const tempTopic = {
+            id: "temp-topic-" + Math.random().toString(),
+            title: newTopic.title,
+            description: newTopic.description ?? null,
+            unitId: newTopic.unitId,
+            materialId: newTopic.materialId ?? null,
+            completed: false,
+            position: unit.topics.length,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            hiveId,
+            searchVec: null,
+          };
+          return {
+            ...unit,
+            topics: [...unit.topics, tempTopic],
+          };
+        });
+      });
+
+      return { previous };
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previous) {
+        utils.syllabus.getSyllabus.setData({ hiveId }, context.previous);
+      }
+      toast.error("Something went wrong. Failed to create topic.");
+    },
     onSuccess: () => {
       toast.success("Syllabus topic created!");
       setTopicDialogOpen(false);
       setTopicTitle("");
       setTopicDesc("");
       setTopicMaterialId(null);
-      utils.syllabus.getSyllabus.invalidate({ hiveId });
     },
-    onError: () => toast.error("Failed to create topic."),
+    onSettled: () => {
+      utils.syllabus.getSyllabus.invalidate({ hiveId });
+    }
   });
 
   const updateTopicMutation = api.syllabus.updateTopic.useMutation({
+    onMutate: async (variables) => {
+      await utils.syllabus.getSyllabus.cancel({ hiveId });
+      const previous = utils.syllabus.getSyllabus.getData({ hiveId });
+
+      utils.syllabus.getSyllabus.setData({ hiveId }, (old) => {
+        if (!old) return old;
+        return old.map((unit) => ({
+          ...unit,
+          topics: unit.topics.map((t) => 
+            t.id === variables.id 
+              ? { 
+                  ...t, 
+                  title: variables.title !== undefined ? variables.title : t.title, 
+                  description: variables.description !== undefined ? variables.description : t.description,
+                  materialId: variables.materialId !== undefined ? variables.materialId : t.materialId 
+                } 
+              : t
+          ),
+        }));
+      });
+
+      return { previous };
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previous) {
+        utils.syllabus.getSyllabus.setData({ hiveId }, context.previous);
+      }
+      toast.error("Something went wrong. Failed to update topic.");
+    },
     onSuccess: () => {
       toast.success("Topic updated!");
       setTopicDialogOpen(false);
@@ -358,17 +488,39 @@ export default function HiveSyllabusPage({ params }: PageProps) {
       setTopicTitle("");
       setTopicDesc("");
       setTopicMaterialId(null);
-      utils.syllabus.getSyllabus.invalidate({ hiveId });
     },
-    onError: () => toast.error("Failed to update topic."),
+    onSettled: () => {
+      utils.syllabus.getSyllabus.invalidate({ hiveId });
+    }
   });
 
   const deleteTopicMutation = api.syllabus.deleteTopic.useMutation({
+    onMutate: async (variables) => {
+      await utils.syllabus.getSyllabus.cancel({ hiveId });
+      const previous = utils.syllabus.getSyllabus.getData({ hiveId });
+
+      utils.syllabus.getSyllabus.setData({ hiveId }, (old) => {
+        if (!old) return old;
+        return old.map((unit) => ({
+          ...unit,
+          topics: unit.topics.filter((t) => t.id !== variables.id),
+        }));
+      });
+
+      return { previous };
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previous) {
+        utils.syllabus.getSyllabus.setData({ hiveId }, context.previous);
+      }
+      toast.error("Something went wrong. Failed to delete topic.");
+    },
     onSuccess: () => {
       toast.success("Topic deleted.");
-      utils.syllabus.getSyllabus.invalidate({ hiveId });
     },
-    onError: () => toast.error("Failed to delete topic."),
+    onSettled: () => {
+      utils.syllabus.getSyllabus.invalidate({ hiveId });
+    }
   });
 
   const reorderUnitsMutation = api.syllabus.reorderUnits.useMutation({

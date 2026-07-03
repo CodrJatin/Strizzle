@@ -24,13 +24,31 @@ export default function PreferencesPage() {
 
   // mutation
   const updatePreferencesMutation = api.user.updatePreferences.useMutation({
+    onMutate: async (updated) => {
+      await utils.user.getPreferences.cancel();
+      const previousPrefs = utils.user.getPreferences.getData();
+      utils.user.getPreferences.setData(undefined, (old) => {
+        if (!old) return old;
+        return { 
+          ...old, 
+          theme: updated.theme ?? old.theme,
+          defaultCalView: updated.defaultCalView ?? old.defaultCalView
+        };
+      });
+      return { previousPrefs };
+    },
+    onError: (err, _variables, context) => {
+      if (context?.previousPrefs) {
+        utils.user.getPreferences.setData(undefined, context.previousPrefs);
+      }
+      toast.error(err.message || "Something went wrong. Please try again.");
+    },
     onSuccess: () => {
-      utils.user.getPreferences.invalidate();
       toast.success("Preferences updated successfully");
     },
-    onError: (err) => {
-      toast.error(err.message || "Failed to save settings. Please try again.");
-    },
+    onSettled: () => {
+      utils.user.getPreferences.invalidate();
+    }
   });
 
   const [selectedTheme, setSelectedTheme] = React.useState("default");

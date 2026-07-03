@@ -59,45 +59,113 @@ export function TaskDetailModal({
   // Mutation states
   const updateTaskMutation = api.task.updateTask.useMutation({
     onMutate: async (updated) => {
-      // Optimistic updates
+      // Cancel inflight queries
       if (task?.hiveId) {
         await utils.task.getTasks.cancel({ hiveId: task.hiveId });
+      }
+      await utils.task.getTask.cancel({ id: updated.id });
+      await utils.task.getMyTasks.cancel();
+
+      // Snapshot for rollback
+      const previousTask = utils.task.getTask.getData({ id: updated.id });
+      const previousTasks = task?.hiveId 
+        ? utils.task.getTasks.getData({ hiveId: task.hiveId }) 
+        : undefined;
+      const previousMyTasks = utils.task.getMyTasks.getData();
+
+      // Apply optimistic updates
+      if (task?.hiveId) {
         utils.task.getTasks.setData({ hiveId: task.hiveId }, (old) => {
           if (!old) return old;
           return old.map((t) => (t.id === updated.id ? { ...t, ...updated } : t)) as any;
         });
       }
-      await utils.task.getTask.cancel({ id: updated.id });
       utils.task.getTask.setData({ id: updated.id }, (old) => {
         if (!old) return old;
         return { ...old, ...updated } as any;
       });
-      // Invalidate dashboard/my tasks
-      utils.task.getMyTasks.invalidate();
+      utils.task.getMyTasks.setData(undefined, (old) => {
+        if (!old) return old;
+        return old.map((t) => (t.id === updated.id ? { ...t, ...updated } : t)) as any;
+      });
+
+      return { previousTask, previousTasks, previousMyTasks };
+    },
+    onError: (_err, updated, ctx) => {
+      // Rollback to snapshots
+      if (ctx?.previousTask) {
+        utils.task.getTask.setData({ id: updated.id }, ctx.previousTask);
+      }
+      if (task?.hiveId && ctx?.previousTasks) {
+        utils.task.getTasks.setData({ hiveId: task.hiveId }, ctx.previousTasks);
+      }
+      if (ctx?.previousMyTasks) {
+        utils.task.getMyTasks.setData(undefined, ctx.previousMyTasks);
+      }
+      toast.error("Something went wrong. Failed to update task.");
     },
     onSuccess: () => {
       if (onTaskUpdated) onTaskUpdated();
-      utils.task.getMyTasks.invalidate();
       utils.calendar.getCalendarTasks.invalidate();
     },
-    onError: () => {
-      toast.error("Failed to update task.");
+    onSettled: (data, error, updated) => {
+      if (task?.hiveId) {
+        utils.task.getTasks.invalidate({ hiveId: task.hiveId });
+      }
+      utils.task.getTask.invalidate({ id: updated.id });
+      utils.task.getMyTasks.invalidate();
     },
   });
 
   const deleteTaskMutation = api.task.deleteTask.useMutation({
+    onMutate: async (variables) => {
+      // Cancel queries
+      if (task?.hiveId) {
+        await utils.task.getTasks.cancel({ hiveId: task.hiveId });
+      }
+      await utils.task.getMyTasks.cancel();
+
+      // Snapshot for rollback
+      const previousTasks = task?.hiveId
+        ? utils.task.getTasks.getData({ hiveId: task.hiveId })
+        : undefined;
+      const previousMyTasks = utils.task.getMyTasks.getData();
+
+      // Apply optimistic update
+      if (task?.hiveId) {
+        utils.task.getTasks.setData({ hiveId: task.hiveId }, (old) => {
+          if (!old) return old;
+          return old.filter((t) => t.id !== variables.id);
+        });
+      }
+      utils.task.getMyTasks.setData(undefined, (old) => {
+        if (!old) return old;
+        return old.filter((t) => t.id !== variables.id);
+      });
+
+      return { previousTasks, previousMyTasks };
+    },
+    onError: (_err, _variables, ctx) => {
+      // Rollback
+      if (task?.hiveId && ctx?.previousTasks) {
+        utils.task.getTasks.setData({ hiveId: task.hiveId }, ctx.previousTasks);
+      }
+      if (ctx?.previousMyTasks) {
+        utils.task.getMyTasks.setData(undefined, ctx.previousMyTasks);
+      }
+      toast.error("Something went wrong. Failed to delete task.");
+    },
     onSuccess: () => {
       toast.success("Task deleted successfully.");
       onClose();
       if (onTaskDeleted) onTaskDeleted();
+      utils.calendar.getCalendarTasks.invalidate();
+    },
+    onSettled: () => {
       if (task?.hiveId) {
         utils.task.getTasks.invalidate({ hiveId: task.hiveId });
       }
       utils.task.getMyTasks.invalidate();
-      utils.calendar.getCalendarTasks.invalidate();
-    },
-    onError: () => {
-      toast.error("Failed to delete task.");
     },
   });
 

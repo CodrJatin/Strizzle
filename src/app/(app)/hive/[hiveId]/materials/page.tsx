@@ -110,56 +110,136 @@ export default function MaterialsPage({ params }: PageProps) {
 
   // Mutations
   const createFolderMutation = api.folder.createFolder.useMutation({
+    onMutate: async (newFolder) => {
+      await utils.folder.getHiveFolders.cancel({ hiveId });
+      const previousFolders = utils.folder.getHiveFolders.getData({ hiveId });
+      utils.folder.getHiveFolders.setData({ hiveId }, (old: any) => {
+        const tempFolder = {
+          id: "temp-folder-" + Math.random().toString(),
+          name: newFolder.name,
+          parentId: newFolder.parentId ?? null,
+          hiveId,
+          createdBy: "temp-user",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        if (!old) return { items: [tempFolder] };
+        return {
+          ...old,
+          items: [...old.items, tempFolder],
+        };
+      });
+      return { previousFolders };
+    },
+    onError: (error, _variables, context) => {
+      if (context?.previousFolders) {
+        utils.folder.getHiveFolders.setData({ hiveId }, context.previousFolders);
+      }
+      toast.error(error.message || "Something went wrong. Failed to create folder.");
+    },
     onSuccess: () => {
       toast.success("Folder created successfully!");
-      utils.folder.getHiveFolders.invalidate({ hiveId });
       setCreateFolderDialogOpen(false);
       setNewFolderName("");
       setNewFolderParentId(null);
     },
-    onError: (error) => {
-      toast.error(error.message || "Failed to create folder.");
-    },
+    onSettled: () => {
+      utils.folder.getHiveFolders.invalidate({ hiveId });
+    }
   });
 
   const renameFolderMutation = api.folder.renameFolder.useMutation({
+    onMutate: async (variables) => {
+      await utils.folder.getHiveFolders.cancel({ hiveId });
+      const previousFolders = utils.folder.getHiveFolders.getData({ hiveId });
+      utils.folder.getHiveFolders.setData({ hiveId }, (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          items: old.items.map((f: any) => f.id === variables.folderId ? { ...f, name: variables.name } : f),
+        };
+      });
+      return { previousFolders };
+    },
+    onError: (error, _variables, context) => {
+      if (context?.previousFolders) {
+        utils.folder.getHiveFolders.setData({ hiveId }, context.previousFolders);
+      }
+      toast.error(error.message || "Something went wrong. Failed to rename folder.");
+    },
     onSuccess: () => {
       toast.success("Folder renamed successfully!");
-      utils.folder.getHiveFolders.invalidate({ hiveId });
       setRenameDialogOpen(false);
       setEditFolderName("");
       setTargetFolder(null);
     },
-    onError: (error) => {
-      toast.error(error.message || "Failed to rename folder.");
-    },
+    onSettled: () => {
+      utils.folder.getHiveFolders.invalidate({ hiveId });
+    }
   });
 
   const deleteFolderMutation = api.folder.deleteFolder.useMutation({
+    onMutate: async (variables) => {
+      await utils.folder.getHiveFolders.cancel({ hiveId });
+      const previousFolders = utils.folder.getHiveFolders.getData({ hiveId });
+      utils.folder.getHiveFolders.setData({ hiveId }, (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          items: old.items.filter((f: any) => f.id !== variables.folderId),
+        };
+      });
+      return { previousFolders };
+    },
+    onError: (error, _variables, context) => {
+      if (context?.previousFolders) {
+        utils.folder.getHiveFolders.setData({ hiveId }, context.previousFolders);
+      }
+      toast.error(error.message || "Something went wrong. Failed to delete folder.");
+    },
     onSuccess: () => {
       toast.success("Folder deleted successfully!");
-      utils.folder.getHiveFolders.invalidate({ hiveId });
-      utils.hiveMaterial.getHiveMaterials.invalidate({ hiveId });
       setDeleteDialogOpen(false);
       setTargetFolder(null);
       if (selectedFolderId === targetFolder?.id) {
         setSelectedFolderId(null);
       }
     },
-    onError: (error) => {
-      toast.error(error.message || "Failed to delete folder.");
-    },
+    onSettled: () => {
+      utils.folder.getHiveFolders.invalidate({ hiveId });
+      utils.hiveMaterial.getHiveMaterials.invalidate({ hiveId });
+    }
   });
 
   const unshareMaterialMutation = api.hiveMaterial.unshareMaterial.useMutation({
+    onMutate: async (variables) => {
+      const qKey = { hiveId, folderId: selectedFolderId, limit: 50 };
+      await utils.hiveMaterial.getHiveMaterials.cancel(qKey);
+      const previousMaterials = utils.hiveMaterial.getHiveMaterials.getData(qKey);
+      
+      utils.hiveMaterial.getHiveMaterials.setData(qKey, (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          items: old.items.filter((m: any) => m.id !== variables.shareId),
+        };
+      });
+      return { previousMaterials };
+    },
+    onError: (error, _variables, context) => {
+      const qKey = { hiveId, folderId: selectedFolderId, limit: 50 };
+      if (context?.previousMaterials) {
+        utils.hiveMaterial.getHiveMaterials.setData(qKey, context.previousMaterials);
+      }
+      toast.error(error.message || "Something went wrong. Failed to unshare material.");
+    },
     onSuccess: () => {
       toast.success("Material unshared from workspace.");
+    },
+    onSettled: () => {
       utils.hiveMaterial.getHiveMaterials.invalidate({ hiveId });
       utils.hive.getHiveOverview.invalidate({ hiveId });
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to unshare material.");
-    },
+    }
   });
 
   const addToLibraryMutation = api.library.addToLibrary.useMutation({

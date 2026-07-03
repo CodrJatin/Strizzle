@@ -81,24 +81,56 @@ export default function HiveSettingsPage({ params }: PageProps) {
   });
 
   const changeRoleMutation = api.member.changeRole.useMutation({
+    onMutate: async (variables) => {
+      await utils.member.getHiveMembers.cancel({ hiveId });
+      const previousMembers = utils.member.getHiveMembers.getData({ hiveId });
+
+      utils.member.getHiveMembers.setData({ hiveId }, (old) => {
+        if (!old) return old;
+        return old.map((m) => m.userId === variables.userId ? { ...m, role: variables.role } : m);
+      });
+
+      return { previousMembers };
+    },
+    onError: (error, _variables, context) => {
+      if (context?.previousMembers) {
+        utils.member.getHiveMembers.setData({ hiveId }, context.previousMembers);
+      }
+      toast.error(error.message || "Something went wrong. Failed to change role.");
+    },
     onSuccess: () => {
       toast.success("Member role updated successfully.");
+    },
+    onSettled: () => {
       utils.member.getHiveMembers.invalidate({ hiveId });
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to change role.");
-    },
+    }
   });
 
   const removeMemberMutation = api.member.removeMember.useMutation({
+    onMutate: async (variables) => {
+      await utils.member.getHiveMembers.cancel({ hiveId });
+      const previousMembers = utils.member.getHiveMembers.getData({ hiveId });
+
+      utils.member.getHiveMembers.setData({ hiveId }, (old) => {
+        if (!old) return old;
+        return old.filter((m) => m.userId !== variables.userId);
+      });
+
+      return { previousMembers };
+    },
+    onError: (error, _variables, context) => {
+      if (context?.previousMembers) {
+        utils.member.getHiveMembers.setData({ hiveId }, context.previousMembers);
+      }
+      toast.error(error.message || "Something went wrong. Failed to remove member.");
+    },
     onSuccess: () => {
       toast.success("Member removed from hive.");
+    },
+    onSettled: () => {
       utils.member.getHiveMembers.invalidate({ hiveId });
       utils.hive.getHiveOverview.invalidate({ hiveId });
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to remove member.");
-    },
+    }
   });
 
   const generateInviteMutation = api.invite.generateInviteLink.useMutation({
@@ -112,13 +144,29 @@ export default function HiveSettingsPage({ params }: PageProps) {
   });
 
   const revokeInviteMutation = api.invite.revokeInvite.useMutation({
+    onMutate: async (variables) => {
+      await utils.invite.listInvites.cancel({ hiveId });
+      const previousInvites = utils.invite.listInvites.getData({ hiveId });
+
+      utils.invite.listInvites.setData({ hiveId }, (old) => {
+        if (!old) return old;
+        return old.filter((i) => i.id !== variables.inviteId);
+      });
+
+      return { previousInvites };
+    },
+    onError: (error, _variables, context) => {
+      if (context?.previousInvites) {
+        utils.invite.listInvites.setData({ hiveId }, context.previousInvites);
+      }
+      toast.error(error.message || "Something went wrong. Failed to revoke link.");
+    },
     onSuccess: () => {
       toast.success("Invite link revoked.");
+    },
+    onSettled: () => {
       utils.invite.listInvites.invalidate({ hiveId });
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to revoke link.");
-    },
+    }
   });
 
   // General details Form state

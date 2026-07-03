@@ -39,26 +39,78 @@ export default function OverviewPage({ params }: PageProps) {
 
   // Mutations
   const createAnnouncementMutation = api.announcement.createAnnouncement.useMutation({
+    onMutate: async (newAnn) => {
+      await utils.hive.getHiveOverview.cancel({ hiveId });
+      const previous = utils.hive.getHiveOverview.getData({ hiveId });
+      const me = utils.user.getMe.getData();
+
+      utils.hive.getHiveOverview.setData({ hiveId }, (old) => {
+        if (!old) return old;
+        const tempAnn = {
+          id: "temp-ann-" + Math.random().toString(),
+          hiveId,
+          title: newAnn.title,
+          body: newAnn.body,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          authorId: me?.id || "temp-author",
+          author: {
+            fullName: me?.fullName || "Me",
+            avatarUrl: me?.avatarUrl || null,
+          },
+        };
+        return {
+          ...old,
+          announcements: [tempAnn, ...old.announcements],
+        };
+      });
+
+      return { previous };
+    },
+    onError: (error, _variables, context) => {
+      if (context?.previous) {
+        utils.hive.getHiveOverview.setData({ hiveId }, context.previous);
+      }
+      toast.error(error.message || "Something went wrong. Failed to post announcement.");
+    },
     onSuccess: () => {
       toast.success("Announcement posted successfully!");
-      utils.hive.getHiveOverview.invalidate({ hiveId });
       setPostDialogOpen(false);
       setNewTitle("");
       setNewBody("");
     },
-    onError: (error) => {
-      toast.error(error.message || "Failed to post announcement.");
-    },
+    onSettled: () => {
+      utils.hive.getHiveOverview.invalidate({ hiveId });
+    }
   });
 
   const deleteAnnouncementMutation = api.announcement.deleteAnnouncement.useMutation({
+    onMutate: async (variables) => {
+      await utils.hive.getHiveOverview.cancel({ hiveId });
+      const previous = utils.hive.getHiveOverview.getData({ hiveId });
+
+      utils.hive.getHiveOverview.setData({ hiveId }, (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          announcements: old.announcements.filter((a) => a.id !== variables.announcementId),
+        };
+      });
+
+      return { previous };
+    },
+    onError: (error, _variables, context) => {
+      if (context?.previous) {
+        utils.hive.getHiveOverview.setData({ hiveId }, context.previous);
+      }
+      toast.error(error.message || "Something went wrong. Failed to delete announcement.");
+    },
     onSuccess: () => {
       toast.success("Announcement deleted.");
+    },
+    onSettled: () => {
       utils.hive.getHiveOverview.invalidate({ hiveId });
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to delete announcement.");
-    },
+    }
   });
 
   // State
