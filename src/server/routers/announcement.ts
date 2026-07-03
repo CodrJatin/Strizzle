@@ -1,9 +1,10 @@
 import { z } from 'zod';
 import { createTRPCRouter, protectedProcedure, enforceRole } from '../trpc';
-import { announcements, users } from '@/db/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { announcements, users, hiveMembers, hives } from '@/db/schema';
+import { eq, and, desc, ne } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
 import { logActivity } from '../lib/logActivity';
+import { sendPushNotification } from '../lib/sendPushNotification';
 
 export const createAnnouncementInputSchema = z.object({
   hiveId: z.string().uuid(),
@@ -46,6 +47,40 @@ export const announcementRouter = createTRPCRouter({
             title: announcement.title,
           },
         });
+
+        // Trigger push notifications to all other hive members in background
+        const membersList = await ctx.db
+          .select({ userId: hiveMembers.userId })
+          .from(hiveMembers)
+          .where(
+            and(
+              eq(hiveMembers.hiveId, input.hiveId),
+              ne(hiveMembers.userId, ctx.user.id)
+            )
+          );
+
+        const [hiveInfo] = await ctx.db
+          .select({ name: hives.name })
+          .from(hives)
+          .where(eq(hives.id, input.hiveId))
+          .limit(1);
+        const hiveName = hiveInfo?.name || "Hive";
+
+        const [actor] = await ctx.db
+          .select({ fullName: users.fullName })
+          .from(users)
+          .where(eq(users.id, ctx.user.id))
+          .limit(1);
+        const actorName = actor?.fullName || "An admin";
+
+        for (const member of membersList) {
+          sendPushNotification(member.userId, {
+            title: `New Announcement in ${hiveName}`,
+            body: `${actorName}: ${announcement.title}`,
+            url: `/hive/${input.hiveId}/overview`,
+            hiveId: input.hiveId,
+          });
+        }
 
         return announcement;
       } catch (error) {

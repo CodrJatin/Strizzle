@@ -20,6 +20,7 @@ import { useQuickAddStore } from "@/store/quickAddStore";
 import { QuickAddModal } from "@/components/QuickAddModal";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { UserProfilePopover } from "@/components/UserProfilePopover";
+import { IOSOnboardingBanner } from "@/components/IOSOnboardingBanner";
 
 // Define navigation item interface
 interface NavItem {
@@ -456,6 +457,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           
           <QuickAddModal />
           <GlobalSearch isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
+          <IOSOnboardingBanner />
         </main>
 
       </div>

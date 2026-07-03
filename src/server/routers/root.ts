@@ -14,6 +14,7 @@ import { hiveMaterialRouter } from './hiveMaterial';
 import { folderRouter } from './folder';
 import { syllabusRouter } from './syllabus';
 import { calendarRouter } from './calendar';
+import { pushRouter } from './push';
 
 export const appRouter = createTRPCRouter({
   user: userRouter,
@@ -31,6 +32,7 @@ export const appRouter = createTRPCRouter({
   folder: folderRouter,
   syllabus: syllabusRouter,
   calendar: calendarRouter,
+  push: pushRouter,
 });
 
 // export type definition of API

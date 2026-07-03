@@ -4,6 +4,7 @@ import { tasks, taskMaterialRefs, hiveMembers, users, hives, notifications, mate
 import { eq, and, or, inArray, desc, asc, sql, isNull, isNotNull, ne } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
 import { logActivity } from '../lib/logActivity';
+import { sendPushNotification } from '../lib/sendPushNotification';
 
 export const createTaskSchema = z.object({
   title: z.string().min(1, "Title is required").max(200, "Title is too long"),
@@ -192,6 +193,21 @@ export const taskRouter = createTRPCRouter({
                   type: 'task_assigned',
                   entityId: task.id,
                 });
+
+              // Trigger background push notification
+              const [actor] = await tx
+                .select({ fullName: users.fullName })
+                .from(users)
+                .where(eq(users.id, ctx.user.id))
+                .limit(1);
+              const actorName = actor?.fullName || "A classmate";
+
+              sendPushNotification(input.assigneeId, {
+                title: "New Task Assigned",
+                body: `${actorName} assigned you a task: ${task.title}`,
+                url: `/desk`,
+                hiveId: input.hiveId || undefined,
+              });
             }
           }
 
@@ -296,6 +312,21 @@ export const taskRouter = createTRPCRouter({
                 type: 'task_assigned',
                 entityId: input.id,
               });
+
+            // Trigger background push notification
+            const [actor] = await tx
+              .select({ fullName: users.fullName })
+              .from(users)
+              .where(eq(users.id, ctx.user.id))
+              .limit(1);
+            const actorName = actor?.fullName || "A classmate";
+
+            sendPushNotification(input.assigneeId, {
+              title: "New Task Assigned",
+              body: `${actorName} assigned you a task: ${updatedTask.title}`,
+              url: `/desk`,
+              hiveId: existingTask.hiveId,
+            });
           }
 
           // Log status completion

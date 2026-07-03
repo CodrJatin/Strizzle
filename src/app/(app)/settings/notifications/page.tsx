@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { Bell, Loader2 } from "lucide-react";
+import { Bell, Loader2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
 import { api } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
+import { useNotificationPermission } from "@/hooks/useNotificationPermission";
 
 type NotificationLevel = "all" | "mentions" | "muted" | "highlights";
 
@@ -13,7 +14,14 @@ export default function NotificationsSettingsPage() {
   // Fetch user hives dynamically
   const { data: hivesList, isLoading: isLoadingHives } = api.hive.getUserHives.useQuery();
 
-  const [globalPushEnabled, setGlobalPushEnabled] = React.useState(true);
+  const {
+    permissionState,
+    isSubscribed,
+    loading: loadingPermission,
+    subscribeUser,
+    unsubscribeUser,
+  } = useNotificationPermission();
+
   const [hiveSettings, setHiveSettings] = React.useState<Record<string, NotificationLevel>>({});
 
   // Initialize hive settings
@@ -78,11 +86,11 @@ export default function NotificationsSettingsPage() {
             </span>
             <span className={cn(
               "text-[10px] font-bold px-2 py-0.5 rounded-full select-none border",
-              globalPushEnabled
+              isSubscribed
                 ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800"
                 : "bg-muted text-muted-foreground border-border"
             )}>
-              {globalPushEnabled ? "ENABLED" : "DISABLED"}
+              {isSubscribed ? "ENABLED" : "DISABLED"}
             </span>
           </div>
           <span className="text-xs text-muted-foreground">
@@ -92,17 +100,27 @@ export default function NotificationsSettingsPage() {
         <label className="relative inline-flex items-center cursor-pointer select-none">
           <input
             type="checkbox"
-            checked={globalPushEnabled}
-            onChange={(e) => {
-              const checked = e.target.checked;
-              setGlobalPushEnabled(checked);
-              toast.success(checked ? "Global push alerts enabled" : "Global push alerts disabled");
+            checked={isSubscribed}
+            disabled={loadingPermission}
+            onChange={() => {
+              if (isSubscribed) {
+                unsubscribeUser();
+              } else {
+                subscribeUser();
+              }
             }}
             className="sr-only peer"
           />
           <div className="w-9 h-5 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-background after:border-border after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary" />
         </label>
       </div>
+
+      {permissionState === "denied" && (
+        <div className="flex items-center gap-2.5 p-4 bg-rose-50/50 text-rose-700 dark:bg-rose-950/10 dark:text-rose-450 border border-rose-100 dark:border-rose-900/30 rounded-2xl text-xs font-semibold">
+          <AlertTriangle className="size-4.5 text-rose-600 dark:text-rose-500 shrink-0" />
+          <span>Browser notifications are blocked. Please reset permissions in your browser address bar to enable notifications.</span>
+        </div>
+      )}
 
       {/* Hive Notifications Configuration */}
       <div className="space-y-4 pt-2">
