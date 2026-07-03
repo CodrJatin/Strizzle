@@ -102,11 +102,15 @@ function RegisterForm() {
       });
 
       if (error) {
-        // Safely extract a readable message — error.message can be undefined on 500s
-        const rawMessage =
-          typeof error.message === "string" && error.message.trim().length > 0
-            ? error.message.trim()
-            : JSON.stringify(error);
+        // Safely extract a readable message — error.message can be undefined or "{}" on 500s
+        let rawMessage = "";
+        if (typeof error.message === "string" && error.message.trim() !== "" && error.message !== "{}") {
+          rawMessage = error.message.trim();
+        } else if (error.status) {
+          rawMessage = `Status ${error.status} (Internal Server Error)`;
+        } else {
+          rawMessage = error.name || "Unknown auth error";
+        }
 
         let friendlyError: string;
         if (
@@ -114,9 +118,15 @@ function RegisterForm() {
           rawMessage.toLowerCase().includes("already exists")
         ) {
           friendlyError = "An account with this email already exists. Try signing in instead.";
-        } else if (rawMessage.includes("500") || rawMessage.toLowerCase().includes("unexpected")) {
+        } else if (
+          error.status === 500 || 
+          rawMessage.includes("500") || 
+          rawMessage.toLowerCase().includes("unexpected") ||
+          error.name === "AuthRetryableFetchError" ||
+          rawMessage.toLowerCase().includes("retryable")
+        ) {
           friendlyError =
-            "Supabase returned a server error (500). This usually means email sending is not configured in your Supabase project. Go to Authentication → Settings and either disable \"Enable email confirmations\" or configure a custom SMTP provider.";
+            "Supabase returned a server error (500). This usually means email confirmations are enabled but SMTP/email sending is not properly configured in your Supabase project dashboard. Go to Authentication -> Provider Settings -> Email and disable 'Confirm email' or configure a custom SMTP provider.";
         } else {
           friendlyError = rawMessage;
         }
