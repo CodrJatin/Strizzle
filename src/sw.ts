@@ -37,6 +37,15 @@ const serwist = new Serwist({
         cacheName: "fonts",
       }),
     },
+    // Cache-first for offline-materials (so if it's cached, serve it, otherwise fetch and cache it)
+    {
+      matcher: ({ request }: { request: Request }) => {
+        return request.url.includes("/storage/v1/object/public/");
+      },
+      handler: new CacheFirst({
+        cacheName: "offline-materials",
+      }),
+    },
     // API/tRPC routes (try network first, fallback to offline if needed)
     {
       matcher: ({ url }: { url: URL }) => url.pathname.startsWith("/api/") || url.pathname.startsWith("/trpc/"),
@@ -46,6 +55,41 @@ const serwist = new Serwist({
       }),
     },
   ],
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "CACHE_MATERIAL") {
+    const { materialId, url } = event.data;
+
+    event.waitUntil(
+      caches.open("offline-materials").then(async (cache) => {
+        try {
+          const response = await fetch(url);
+          if (!response.ok) throw new Error("Fetch failed");
+          await cache.put(url, response.clone());
+
+          // Send success message back to the client
+          if (event.source) {
+            event.source.postMessage({
+              type: "CACHED",
+              materialId,
+              success: true,
+            });
+          }
+        } catch (err: any) {
+          console.error("Failed to cache material in Service Worker:", err);
+          if (event.source) {
+            event.source.postMessage({
+              type: "CACHED",
+              materialId,
+              success: false,
+              error: err.message,
+            });
+          }
+        }
+      })
+    );
+  }
 });
 
 serwist.addEventListeners();

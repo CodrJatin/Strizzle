@@ -5,10 +5,12 @@ import { motion } from "framer-motion";
 import { 
   Star, Trash2, ExternalLink, Download, Share2, 
   HelpCircle, FileText, FileArchive, FileAudio, File, 
-  Link2, Calendar, LayoutGrid, Eye, Tag
+  Link2, Calendar, LayoutGrid, Eye, Tag, CheckCircle2, Loader2
 } from "lucide-react";
 import { toast } from "sonner";
 import type { inferRouterOutputs } from "@trpc/server";
+
+import { useMaterialCache } from "@/hooks/useMaterialCache";
 
 import type { AppRouter } from "@/server/routers/root";
 import { api } from "@/lib/trpc/client";
@@ -102,6 +104,7 @@ export function LibraryMaterialCard({
 }: LibraryMaterialCardProps) {
   const utils = api.useUtils();
   const supabase = createClient();
+  const { isCached, isDownloading, downloadMaterial } = useMaterialCache();
 
   const qFilter = queryFilter || { limit: 18 };
 
@@ -428,8 +431,15 @@ export function LibraryMaterialCard({
                 </p>
               </div>
               <div className="text-[10px] font-medium text-muted-foreground pt-3 border-t border-border/30 mt-3 flex justify-between items-center">
-                <span>Added {formatRelativeTime(addedAt)}</span>
-                {starred && <Star className="size-3.5 fill-yellow-400 text-yellow-500" />}
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="truncate">Added {formatRelativeTime(addedAt)}</span>
+                  {isCached(fileUrl) && (
+                    <span className="text-[9px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 px-1.5 py-0.5 rounded border border-emerald-200/30 dark:border-emerald-800/30 uppercase tracking-wide shrink-0">
+                      Offline
+                    </span>
+                  )}
+                </div>
+                {starred && <Star className="size-3.5 fill-yellow-400 text-yellow-500 shrink-0" />}
               </div>
             </div>
           </div>
@@ -464,19 +474,50 @@ export function LibraryMaterialCard({
           
           <div className="flex items-center gap-2">
             {/* Open / Download Action */}
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={material.contentType === "file" || material.contentType === "image" ? handleDownload : handleOpen}
-              className="size-9 rounded-xl border-border/60 hover:bg-primary/10 hover:text-primary hover:border-primary/20"
-              title={material.contentType === "file" || material.contentType === "image" ? "Download Resource" : "Open Resource"}
-            >
-              {material.contentType === "file" || material.contentType === "image" ? (
-                <Download className="size-4.5" />
+            {(material.contentType === "file" || material.contentType === "image") ? (
+              isCached(fileUrl) ? (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="size-9 rounded-xl border-emerald-500/30 bg-emerald-50/55 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 pointer-events-none"
+                  title="Available Offline"
+                >
+                  <CheckCircle2 className="size-4.5" />
+                </Button>
+              ) : isDownloading(material.id) ? (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="size-9 rounded-xl border-border/60"
+                  disabled
+                >
+                  <Loader2 className="size-4.5 animate-spin" />
+                </Button>
               ) : (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (fileUrl) downloadMaterial(material.id, fileUrl);
+                  }}
+                  className="size-9 rounded-xl border-border/60 hover:bg-primary/10 hover:text-primary hover:border-primary/20"
+                  title="Download for Offline"
+                >
+                  <Download className="size-4.5" />
+                </Button>
+              )
+            ) : (
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleOpen}
+                className="size-9 rounded-xl border-border/60 hover:bg-primary/10 hover:text-primary hover:border-primary/20"
+                title="Open Resource"
+              >
                 <ExternalLink className="size-4.5" />
-              )}
-            </Button>
+              </Button>
+            )}
             
             {/* Star Action */}
             <Button
@@ -571,17 +612,35 @@ export function LibraryMaterialCard({
             <Eye className="size-4" />
           </Button>
 
-          {/* Download Button (for files/images) */}
+          {/* Download/Offline Button (for files/images) */}
           {(material.contentType === "file" || material.contentType === "image") && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={handleDownload}
-              className="size-8 rounded-lg text-muted-foreground hover:bg-muted"
-              title="Download File"
-            >
-              <Download className="size-4" />
-            </Button>
+            isCached(fileUrl) ? (
+              <span className="text-[9px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 px-2 py-0.5 rounded-lg border border-emerald-200/30 dark:border-emerald-800/30 uppercase tracking-wide flex items-center gap-1 shrink-0">
+                <CheckCircle2 className="size-3.5" /> Offline
+              </span>
+            ) : isDownloading(material.id) ? (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                disabled
+                className="size-8 rounded-lg text-muted-foreground"
+              >
+                <Loader2 className="size-4 animate-spin" />
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (fileUrl) downloadMaterial(material.id, fileUrl);
+                }}
+                className="size-8 rounded-lg text-muted-foreground hover:bg-muted"
+                title="Download for Offline"
+              >
+                <Download className="size-4" />
+              </Button>
+            )
           )}
 
           {/* Star Button */}

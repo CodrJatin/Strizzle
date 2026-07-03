@@ -1,39 +1,125 @@
 "use client";
 
 import * as React from "react";
-import { HardDrive, Trash2, FileText, CheckCircle2 } from "lucide-react";
+import { HardDrive, Trash2, FileText, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
+interface CachedItem {
+  url: string;
+  name: string;
+  size: string;
+  sizeBytes: number;
+}
+
 export default function OfflineStoragePage() {
-  const [cachedItems, setCachedItems] = React.useState([
-    {
-      id: "1",
-      name: "Advanced_Macroeconomics_Ch4.pdf",
-      syncTime: "Synced 2 days ago",
-      size: "8.4 MB",
-    },
-    {
-      id: "2",
-      name: "Organic_Chemistry_Lab_Manual.pdf",
-      syncTime: "Synced last week",
-      size: "12.1 MB",
-    },
-    {
-      id: "3",
-      name: "Syllabus_Fall2024_CompSci.pdf",
-      syncTime: "Synced 3 weeks ago",
-      size: "3.5 MB",
-    },
-  ]);
+  const [cachedItems, setCachedItems] = React.useState<CachedItem[]>([]);
+  const [loading, setLoading] = React.useState(true);
 
-  const totalSize = 24; // MB
-  const currentUsedPercentage = (totalSize / 250) * 100; // let's assume 250MB storage quota
-
-  const handleClearData = () => {
-    setCachedItems([]);
-    toast.success("Offline storage cache cleared successfully");
+  const getFilename = (urlStr: string) => {
+    try {
+      const url = new URL(urlStr);
+      const pathname = decodeURIComponent(url.pathname);
+      const filename = pathname.substring(pathname.lastIndexOf("/") + 1);
+      return filename || "Untitled Material";
+    } catch (err) {
+      return urlStr;
+    }
   };
+
+  const loadCache = React.useCallback(async () => {
+    if (typeof window === "undefined" || !("caches" in window)) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const cache = await caches.open("offline-materials");
+      const keys = await cache.keys();
+      const items = await Promise.all(
+        keys.map(async (key) => {
+          const response = await cache.match(key);
+          let size = "Unknown size";
+          let sizeBytes = 0;
+          
+          if (response) {
+            const contentLength = response.headers.get("content-length");
+            if (contentLength) {
+              const bytes = parseInt(contentLength, 10);
+              sizeBytes = bytes;
+              if (bytes > 1024 * 1024) {
+                size = `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+              } else if (bytes > 1024) {
+                size = `${(bytes / 1024).toFixed(1)} KB`;
+              } else {
+                size = `${bytes} B`;
+              }
+            }
+          }
+          
+          return {
+            url: key.url,
+            name: getFilename(key.url),
+            size,
+            sizeBytes,
+          };
+        })
+      );
+      
+      setCachedItems(items);
+    } catch (err) {
+      console.error("Failed to read cache keys:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    loadCache();
+  }, [loadCache]);
+
+  const handleClearData = async () => {
+    if (typeof window === "undefined" || !("caches" in window)) return;
+    
+    try {
+      await caches.delete("offline-materials");
+      setCachedItems([]);
+      toast.success("Offline storage cache cleared successfully");
+    } catch (err) {
+      toast.error("Failed to clear cache storage");
+    }
+  };
+
+  const handleDeleteItem = async (url: string) => {
+    if (typeof window === "undefined" || !("caches" in window)) return;
+
+    try {
+      const cache = await caches.open("offline-materials");
+      const success = await cache.delete(url);
+      if (success) {
+        toast.success("Material removed from offline storage");
+        loadCache();
+      } else {
+        toast.error("Failed to remove material");
+      }
+    } catch (err) {
+      toast.error("Failed to delete item from cache");
+    }
+  };
+
+  const totalSizeBytes = cachedItems.reduce((acc, item) => acc + item.sizeBytes, 0);
+  const totalSizeMB = totalSizeBytes / (1024 * 1024);
+  const quotaMB = 250; // Assume standard local offline storage quota of 250MB
+  const currentUsedPercentage = Math.min((totalSizeMB / quotaMB) * 100, 100);
+
+  if (loading) {
+    return (
+      <div className="min-h-[40vh] flex flex-col justify-center items-center font-sans">
+        <Loader2 className="size-8 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground mt-4">Reading offline cache state...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 font-sans max-w-2xl">
@@ -49,14 +135,14 @@ export default function OfflineStoragePage() {
           <div className="flex justify-between items-baseline">
             <span className="text-xs text-muted-foreground font-semibold">Total offline data</span>
             <span className="text-md font-bold text-foreground">
-              {cachedItems.length > 0 ? `${totalSize} MB` : "0 MB"} <span className="text-xs text-muted-foreground font-normal">used</span>
+              {totalSizeMB.toFixed(1)} MB <span className="text-xs text-muted-foreground font-normal">used of {quotaMB} MB</span>
             </span>
           </div>
           {/* Progress bar */}
-          <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+          <div className="h-2.5 w-full bg-muted rounded-full overflow-hidden border border-border/50">
             <div 
               className="h-full bg-primary rounded-full transition-all duration-300"
-              style={{ width: `${cachedItems.length > 0 ? currentUsedPercentage : 0}%` }}
+              style={{ width: `${currentUsedPercentage}%` }}
             />
           </div>
           <p className="text-xs text-muted-foreground">
@@ -69,39 +155,50 @@ export default function OfflineStoragePage() {
       <div className="space-y-4">
         <div className="bg-muted/10 border border-border/80 rounded-2xl p-5">
           <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-3.5">
-            Cached Materials
+            Cached Materials ({cachedItems.length})
           </span>
 
           <div className="space-y-3">
             {cachedItems.length > 0 ? (
               cachedItems.map((item) => (
                 <div 
-                  key={item.id}
-                  className="flex items-center justify-between p-3 bg-card border border-border rounded-xl shadow-inner-sm hover:shadow-sm transition-shadow"
+                  key={item.url}
+                  className="flex items-center justify-between p-3.5 bg-card border border-border rounded-2xl hover:shadow-xs transition-shadow gap-4"
                 >
-                  <div className="flex items-center gap-3">
-                    {/* PDF icon box */}
-                    <div className="size-9 bg-rose-50 text-rose-500 rounded-lg flex items-center justify-center font-bold text-[10px] border border-rose-100 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/40">
-                      PDF
+                  <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                    {/* File icon box */}
+                    <div className="size-9 bg-primary/5 text-primary rounded-xl flex items-center justify-center font-bold text-[10px] border border-primary/10 shrink-0">
+                      <FileText className="size-4" />
                     </div>
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-xs font-semibold text-foreground truncate max-w-[280px] sm:max-w-sm">
+                    <div className="flex flex-col gap-0.5 min-w-0">
+                      <span className="text-xs font-semibold text-foreground truncate max-w-[280px] sm:max-w-sm" title={item.name}>
                         {item.name}
                       </span>
                       <span className="text-[10px] text-muted-foreground">
-                        {item.syncTime} &bull; {item.size}
+                        {item.size}
                       </span>
                     </div>
                   </div>
                   
-                  <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 px-2 py-0.5 rounded-md">
-                    <CheckCircle2 className="size-3" /> Ready
-                  </span>
+                  <div className="flex items-center gap-2.5 shrink-0">
+                    <span className="flex items-center gap-1 text-[9px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100/30 dark:border-emerald-900/30 px-2 py-0.5 rounded-lg uppercase tracking-wider">
+                      <CheckCircle2 className="size-3" /> Ready
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => handleDeleteItem(item.url)}
+                      className="size-8 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+                      title="Remove from offline"
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
                 </div>
               ))
             ) : (
-              <div className="text-center py-6">
-                <span className="text-xs text-muted-foreground">No cached materials offline</span>
+              <div className="text-center py-8 border border-dashed border-border rounded-xl">
+                <span className="text-xs text-muted-foreground">No cached materials offline. Select download on any course materials to make them available offline.</span>
               </div>
             )}
           </div>
