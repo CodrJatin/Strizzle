@@ -42,6 +42,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [searchOpen, setSearchOpen] = React.useState(false);
+  const utils = api.useUtils();
 
   // Fetch authenticated user profile
   const { data: me, isLoading: isLoadingMe } = api.user.getMe.useQuery(undefined, {
@@ -210,6 +211,43 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     openQuickAdd();
   };
 
+  const handleNavHover = (href: string) => {
+    if (href === "/dashboard" || href === "/") {
+      utils.hive.getUserHives.prefetch();
+      utils.task.getMyTasks.prefetch();
+      utils.library.getLibraryMaterials.prefetch({ starredOnly: true, limit: 10 });
+    } else if (href.startsWith("/calendar")) {
+      utils.hive.getUserHives.prefetch();
+    } else if (href === "/desk") {
+      utils.shelf.getShelfItems.prefetch();
+    } else if (href.startsWith("/library")) {
+      utils.library.getLibraryMaterials.prefetch({});
+      utils.library.getHiveMaterialsForLibrary.prefetch();
+    } else if (href.startsWith("/feed")) {
+      utils.activity.getFeed.prefetch();
+    } else if (href.startsWith("/hives")) {
+      utils.hive.getUserHives.prefetch();
+    } else if (href.startsWith("/hive/")) {
+      const parts = href.split("/");
+      const hiveId = parts[2];
+      if (hiveId && hiveId !== "placeholder") {
+        utils.hive.getHive.prefetch({ hiveId });
+        utils.hive.getHiveOverview.prefetch({ hiveId });
+        
+        if (href.endsWith("/materials")) {
+          utils.folder.getHiveFolders.prefetch({ hiveId });
+          utils.hiveMaterial.getHiveMaterials.prefetch({ hiveId, limit: 100 });
+        } else if (href.endsWith("/tasks")) {
+          utils.task.getTasks.prefetch({ hiveId });
+          utils.member.getHiveMembers.prefetch({ hiveId });
+        } else if (href.endsWith("/settings")) {
+          utils.member.getHiveMembers.prefetch({ hiveId });
+          utils.invite.listInvites.prefetch({ hiveId });
+        }
+      }
+    }
+  };
+
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // 1. Toggle Quick Add on Ctrl+Shift+A
@@ -283,6 +321,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               key={link.label}
               href={link.href}
               onClick={() => setMobileMenuOpen(false)}
+              onMouseEnter={() => handleNavHover(link.href)}
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all",
                 isActive
@@ -340,6 +379,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <nav className="hidden md:flex items-center gap-1 lg:gap-2 h-full">
           <Link
             href="/dashboard"
+            onMouseEnter={() => handleNavHover("/dashboard")}
             className={cn(
               "relative px-4 h-full flex items-center text-sm font-medium transition-colors hover:text-foreground",
               isTopLinkActive("/dashboard")
@@ -351,6 +391,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </Link>
           <Link
             href="/desk"
+            onMouseEnter={() => handleNavHover("/desk")}
             className={cn(
               "relative px-4 h-full flex items-center text-sm font-medium transition-colors hover:text-foreground",
               isTopLinkActive("/desk") || isTopLinkActive("/notes") || isTopLinkActive("/groups") || isTopLinkActive("/archive")
@@ -362,6 +403,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </Link>
           <Link
             href="/library"
+            onMouseEnter={() => handleNavHover("/library")}
             className={cn(
               "relative px-4 h-full flex items-center text-sm font-medium transition-colors hover:text-foreground",
               isTopLinkActive("/library")
@@ -373,6 +415,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </Link>
           <Link
             href="/feed"
+            onMouseEnter={() => handleNavHover("/feed")}
             className={cn(
               "relative px-4 h-full flex items-center text-sm font-medium transition-colors hover:text-foreground",
               isTopLinkActive("/feed") || isTopLinkActive("/hive") || isTopLinkActive("/hives")
