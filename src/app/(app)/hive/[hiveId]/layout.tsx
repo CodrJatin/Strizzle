@@ -45,7 +45,7 @@ export default async function HiveLayout({ children, params }: HiveLayoutProps) 
     },
   });
 
-  // 4. Prefetch Hive details & Overview concurrently using getQueryKey
+  // 4. Prefetch Hive details, Overview, and Members concurrently using getQueryKey
   await Promise.all([
     queryClient.prefetchQuery({
       queryKey: getQueryKey(api.hive.getHive, { hiveId }),
@@ -54,6 +54,10 @@ export default async function HiveLayout({ children, params }: HiveLayoutProps) 
     queryClient.prefetchQuery({
       queryKey: getQueryKey(api.hive.getHiveOverview, { hiveId }),
       queryFn: () => caller.hive.getHiveOverview({ hiveId }),
+    }),
+    queryClient.prefetchQuery({
+      queryKey: getQueryKey(api.member.getHiveMembers, { hiveId }),
+      queryFn: () => caller.member.getHiveMembers({ hiveId }),
     }),
   ]);
 
