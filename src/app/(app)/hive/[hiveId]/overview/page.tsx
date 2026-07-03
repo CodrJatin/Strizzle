@@ -28,8 +28,14 @@ export default function OverviewPage({ params }: PageProps) {
   const utils = api.useUtils();
 
   // Queries
-  const { data: hive, isLoading: isLoadingHive } = api.hive.getHive.useQuery({ hiveId });
-  const { data: overview, isLoading: isLoadingOverview } = api.hive.getHiveOverview.useQuery({ hiveId });
+  const { data: hive, isLoading: isLoadingHive } = api.hive.getHive.useQuery(
+    { hiveId },
+    { staleTime: 300000 } // Slow-changing hive details: 5 minutes
+  );
+  const { data: overview, isLoading: isLoadingOverview } = api.hive.getHiveOverview.useQuery(
+    { hiveId },
+    { staleTime: 30000 } // High-frequency live data (hive overview): 30 seconds
+  );
 
   // Mutations
   const createAnnouncementMutation = api.announcement.createAnnouncement.useMutation({

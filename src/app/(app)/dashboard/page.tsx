@@ -86,7 +86,7 @@ export default function DashboardPage() {
   });
 
   const { data: hivesData, isLoading: isLoadingHives } = api.hive.getUserHives.useQuery(undefined, {
-    staleTime: 30000, // 30s cache for live groups
+    staleTime: 120000, // Standard hives list: 2 minutes
   });
 
   const starredFilter = { starredOnly: true, limit: 10 };

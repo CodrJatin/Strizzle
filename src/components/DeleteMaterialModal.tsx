@@ -36,7 +36,7 @@ export function DeleteMaterialModal({ item, isOpen, onClose, queryFilter }: Dele
   // Check if material is shared to any hives
   const { data: shareData, isLoading: isLoadingShares } = api.material.checkMaterialShares.useQuery(
     { materialId: material.id },
-    { enabled: isOpen, staleTime: 30000 }
+    { enabled: isOpen, staleTime: 120000 } // Standard materials share data: 2 minutes
   );
 
   // Delete Mutation with Optimistic Updates

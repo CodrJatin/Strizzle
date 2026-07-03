@@ -41,11 +41,21 @@ export default function HiveSettingsPage({ params }: PageProps) {
   const [activeTab, setActiveTab] = React.useState<TabType>("general");
 
   // Queries
-  const { data: hive, isLoading: isLoadingHive } = api.hive.getHive.useQuery({ hiveId });
-  const { data: members, isLoading: isLoadingMembers } = api.member.getHiveMembers.useQuery({ hiveId });
-  const { data: invites, isLoading: isLoadingInvites } = api.invite.listInvites.useQuery({ hiveId }, {
-    enabled: activeTab === "sharing",
-  });
+  const { data: hive, isLoading: isLoadingHive } = api.hive.getHive.useQuery(
+    { hiveId },
+    { staleTime: 300000 } // Slow-changing hive details: 5 minutes
+  );
+  const { data: members, isLoading: isLoadingMembers } = api.member.getHiveMembers.useQuery(
+    { hiveId },
+    { staleTime: 120000 } // Standard hive members list: 2 minutes
+  );
+  const { data: invites, isLoading: isLoadingInvites } = api.invite.listInvites.useQuery(
+    { hiveId },
+    {
+      enabled: activeTab === "sharing",
+      staleTime: 120000, // Standard invite list: 2 minutes
+    }
+  );
 
   // Mutations
   const updateHiveMutation = api.hive.updateHive.useMutation({

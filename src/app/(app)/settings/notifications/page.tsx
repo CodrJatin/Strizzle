@@ -12,7 +12,10 @@ type NotificationLevel = "all" | "mentions" | "muted" | "highlights";
 
 export default function NotificationsSettingsPage() {
   // Fetch user hives dynamically
-  const { data: hivesList, isLoading: isLoadingHives } = api.hive.getUserHives.useQuery();
+  const { data: hivesList, isLoading: isLoadingHives } = api.hive.getUserHives.useQuery(
+    undefined,
+    { staleTime: 120000 } // Standard hives list: 2 minutes
+  );
 
   const {
     permissionState,

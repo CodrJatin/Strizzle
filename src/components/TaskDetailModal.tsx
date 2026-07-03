@@ -48,12 +48,12 @@ export function TaskDetailModal({
   // Queries
   const { data: task, isLoading, isError } = api.task.getTask.useQuery(
     { id: taskId || "" },
-    { enabled: !!taskId && isOpen, staleTime: 30000 }
+    { enabled: !!taskId && isOpen, staleTime: 120000 } // Standard task data: 2 minutes
   );
 
   const { data: members } = api.member.getHiveMembers.useQuery(
     { hiveId: hiveId || task?.hiveId || "" },
-    { enabled: !!(hiveId || task?.hiveId) && isOpen, staleTime: 300000 }
+    { enabled: !!(hiveId || task?.hiveId) && isOpen, staleTime: 120000 } // Standard hive members data: 2 minutes
   );
 
   // Mutation states

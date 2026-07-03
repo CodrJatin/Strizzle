@@ -65,7 +65,7 @@ export default function HiveTasksPage({ params }: PageProps) {
 
   const { data: members = [] } = api.member.getHiveMembers.useQuery(
     { hiveId },
-    { staleTime: 300000 }
+    { staleTime: 120000 } // Standard hive members: 2 minutes
   );
 
   // Mutations

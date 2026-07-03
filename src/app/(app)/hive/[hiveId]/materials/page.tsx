@@ -56,8 +56,14 @@ export default function MaterialsPage({ params }: PageProps) {
   const utils = api.useUtils();
 
   // Queries
-  const { data: hive, isLoading: isLoadingHive } = api.hive.getHive.useQuery({ hiveId });
-  const { data: foldersData, isLoading: isLoadingFolders } = api.folder.getHiveFolders.useQuery({ hiveId });
+  const { data: hive, isLoading: isLoadingHive } = api.hive.getHive.useQuery(
+    { hiveId },
+    { staleTime: 300000 } // Slow-changing hive details: 5 minutes
+  );
+  const { data: foldersData, isLoading: isLoadingFolders } = api.folder.getHiveFolders.useQuery(
+    { hiveId },
+    { staleTime: 300000 } // Slow-changing syllabus tree & folder structures: 5 minutes
+  );
   
   // Filter state
   const [selectedFolderId, setSelectedFolderId] = React.useState<string | null>(null); // null = "All Materials"
@@ -66,27 +72,41 @@ export default function MaterialsPage({ params }: PageProps) {
   const [viewMode, setViewMode] = React.useState<"grid" | "list">("grid");
 
   // Fetch materials for selected folder
-  const { data: materialsData, isLoading: isLoadingMaterials } = api.hiveMaterial.getHiveMaterials.useQuery({
-    hiveId,
-    folderId: selectedFolderId,
-    limit: 50,
-  });
+  const { data: materialsData, isLoading: isLoadingMaterials } = api.hiveMaterial.getHiveMaterials.useQuery(
+    {
+      hiveId,
+      folderId: selectedFolderId,
+      limit: 50,
+    },
+    { staleTime: 120000 } // Standard materials list: 2 minutes
+  );
 
   // Fetch ALL materials in hive to calculate folder counts client-side
-  const { data: allMaterialsData } = api.hiveMaterial.getHiveMaterials.useQuery({
-    hiveId,
-    limit: 100,
-  });
+  const { data: allMaterialsData } = api.hiveMaterial.getHiveMaterials.useQuery(
+    {
+      hiveId,
+      limit: 100,
+    },
+    { staleTime: 120000 } // Standard materials list: 2 minutes
+  );
 
   // Queries for Sharing Modal (Tab: From my library)
   const [shareModalOpen, setShareModalOpen] = React.useState(false);
 
-  const { data: libraryData } = api.library.getLibraryMaterials.useQuery({}, {
-    enabled: shareModalOpen,
-  });
-  const { data: shelfData } = api.shelf.getShelfItems.useQuery(undefined, {
-    enabled: shareModalOpen,
-  });
+  const { data: libraryData } = api.library.getLibraryMaterials.useQuery(
+    {},
+    {
+      enabled: shareModalOpen,
+      staleTime: 120000, // Standard library materials list: 2 minutes
+    }
+  );
+  const { data: shelfData } = api.shelf.getShelfItems.useQuery(
+    undefined,
+    {
+      enabled: shareModalOpen,
+      staleTime: 120000, // Standard shelf items list: 2 minutes
+    }
+  );
 
   // Mutations
   const createFolderMutation = api.folder.createFolder.useMutation({

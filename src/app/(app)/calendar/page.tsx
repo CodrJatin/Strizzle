@@ -155,7 +155,7 @@ function CalendarPageContent({ defaultView }: CalendarPageProps) {
   );
 
   const { data: hivesData = [] } = api.hive.getUserHives.useQuery(undefined, {
-    staleTime: 300000,
+    staleTime: 120000, // Standard hives list: 2 minutes
   });
 
   // Mutations

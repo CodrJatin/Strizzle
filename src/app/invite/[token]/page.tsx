@@ -54,7 +54,7 @@ export default function InvitePage({ params }: PageProps) {
   // Fetch invite details
   const { data: invite, isLoading: isLoadingInvite, error: inviteError } = api.invite.getInviteByToken.useQuery(
     { token },
-    { retry: false }
+    { retry: false, staleTime: 120000 } // Standard invite data: 2 minutes
   );
 
   // Mutation to accept the invite

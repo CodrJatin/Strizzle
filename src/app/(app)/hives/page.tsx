@@ -53,7 +53,7 @@ export default function HivesCatalogPage() {
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
 
   const { data: hivesData, isLoading: isLoadingHives } = api.hive.getUserHives.useQuery(undefined, {
-    staleTime: 30000,
+    staleTime: 120000, // Standard hives list: 2 minutes
   });
 
   const hives = hivesData || [];
