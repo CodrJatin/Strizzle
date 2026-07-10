@@ -429,7 +429,6 @@ export const syllabusTopics = pgTable(
       .notNull()
       .references(() => hives.id, { onDelete: 'cascade' }),
     title: text('title').notNull(),
-    description: text('description'),
     materialId: uuid('material_id')
       .references(() => materials.id),
     position: integer('position').notNull().default(0),

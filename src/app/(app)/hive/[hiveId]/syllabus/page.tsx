@@ -13,10 +13,11 @@ import { CSS } from "@dnd-kit/utilities";
 import { 
   Plus, Check, Trash2, Edit3, Loader2, BookOpen,
   ChevronDown, ChevronUp, GripVertical, AlertCircle, FileText,
-  Link2, CheckCircle2, ShieldAlert
+  Link2, CheckCircle2, ShieldAlert, X
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { motion, AnimatePresence } from "framer-motion";
 
 import { api } from "@/lib/trpc/client";
 import { useHiveStore } from "@/store/hiveStore";
@@ -24,40 +25,77 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
-import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 interface PageProps {
   params: Promise<{ hiveId: string }>;
 }
+
+// Helper to capitalize the first word/letter
+const capitalize = (str: string) => {
+  if (!str) return "";
+  return str.charAt(0).toUpperCase() + str.slice(1);
+};
 
 // Sortable Syllabus Unit Component
 interface SortableUnitProps {
   unit: any;
   isAdminOrOwner: boolean;
   isMemberOrAbove: boolean;
-  onEditUnit: (id: string, currentTitle: string) => void;
   onDeleteUnit: (id: string) => void;
-  onAddTopic: (unitId: string) => void;
-  onEditTopic: (topic: any) => void;
   onDeleteTopic: (id: string) => void;
   onToggleTopic: (topicId: string, completed: boolean) => void;
   topicStats?: Record<string, number>;
   totalMembers?: number;
+  
+  // Unit inline edit state
+  editingUnitId: string | null;
+  editingUnitTitle: string;
+  onStartEditUnit: (id: string, currentTitle: string) => void;
+  onCancelEditUnit: () => void;
+  onSaveEditUnit: (id: string, title: string) => void;
+  onEditingUnitTitleChange: (value: string) => void;
+
+  // Topic inline edit state
+  editingTopicId: string | null;
+  editingTopicTitle: string;
+  onStartEditTopic: (id: string, currentTitle: string) => void;
+  onCancelEditTopic: () => void;
+  onSaveEditTopic: (id: string, title: string) => void;
+  onEditingTopicTitleChange: (value: string) => void;
+
+  // Topic inline add state
+  newTopicTitle: string;
+  onNewTopicTitleChange: (value: string) => void;
+  onAddTopic: () => void;
 }
 
 function SortableUnit({
   unit,
   isAdminOrOwner,
   isMemberOrAbove,
-  onEditUnit,
   onDeleteUnit,
-  onAddTopic,
-  onEditTopic,
   onDeleteTopic,
   onToggleTopic,
   topicStats,
   totalMembers,
+  
+  editingUnitId,
+  editingUnitTitle,
+  onStartEditUnit,
+  onCancelEditUnit,
+  onSaveEditUnit,
+  onEditingUnitTitleChange,
+
+  editingTopicId,
+  editingTopicTitle,
+  onStartEditTopic,
+  onCancelEditTopic,
+  onSaveEditTopic,
+  onEditingTopicTitleChange,
+
+  newTopicTitle,
+  onNewTopicTitleChange,
+  onAddTopic,
 }: SortableUnitProps) {
   const {
     attributes,
@@ -77,10 +115,17 @@ function SortableUnit({
   const completedTopics = unit.topics.filter((t: any) => t.completed).length;
   const progressPercent = totalTopics > 0 ? Math.round((completedTopics / totalTopics) * 100) : 0;
 
+  const isEditingUnit = editingUnitId === unit.id;
+
   return (
-    <div
+    <motion.div
       ref={setNodeRef}
       style={style}
+      layoutId={unit.id}
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ duration: 0.2 }}
       className={cn(
         "bg-card rounded-2xl border border-border/80 shadow-xs overflow-hidden transition-all",
         isDragging && "opacity-40 shadow-md border-primary/20"
@@ -89,7 +134,7 @@ function SortableUnit({
       {/* Unit Header Wrapper */}
       <div className="flex items-center gap-3 px-4 py-3 bg-muted/15 border-b border-border/40">
         {/* Drag handle for members */}
-        {isMemberOrAbove && (
+        {isMemberOrAbove && !isEditingUnit && (
           <div
             {...attributes}
             {...listeners}
@@ -101,27 +146,69 @@ function SortableUnit({
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-4">
-            <h3 className="text-xs font-bold text-foreground truncate">{unit.title}</h3>
+            {isEditingUnit ? (
+              <div className="flex items-center gap-2 flex-1">
+                <Input
+                  value={editingUnitTitle}
+                  onChange={(e) => onEditingUnitTitleChange(e.target.value)}
+                  className="h-8 text-xs font-bold py-1 px-2 focus-visible:ring-1 bg-transparent flex-1"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && editingUnitTitle.trim() !== unit.title && editingUnitTitle.trim().length > 0) {
+                      onSaveEditUnit(unit.id, editingUnitTitle);
+                    } else if (e.key === "Escape") {
+                      onCancelEditUnit();
+                    }
+                  }}
+                  autoFocus
+                />
+              </div>
+            ) : (
+              <h3 className="text-xs font-bold text-foreground truncate">{capitalize(unit.title)}</h3>
+            )}
             
             {/* Admin Controls */}
             {isMemberOrAbove && (
               <div className="flex items-center gap-1.5 shrink-0">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => onEditUnit(unit.id, unit.title)}
-                  className="size-7 text-muted-foreground hover:text-foreground rounded-lg cursor-pointer"
-                >
-                  <Edit3 className="size-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => onDeleteUnit(unit.id)}
-                  className="size-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer"
-                >
-                  <Trash2 className="size-3.5" />
-                </Button>
+                {isEditingUnit ? (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={editingUnitTitle.trim() === unit.title || editingUnitTitle.trim().length === 0}
+                      onClick={() => onSaveEditUnit(unit.id, editingUnitTitle)}
+                      className="size-7 text-primary hover:text-primary hover:bg-primary/10 rounded-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Check className="size-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={onCancelEditUnit}
+                      className="size-7 text-muted-foreground hover:text-foreground rounded-lg cursor-pointer"
+                    >
+                      <X className="size-3.5" />
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => onStartEditUnit(unit.id, unit.title)}
+                      className="size-7 text-muted-foreground hover:text-foreground rounded-lg cursor-pointer"
+                    >
+                      <Edit3 className="size-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => onDeleteUnit(unit.id)}
+                      className="size-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -138,104 +225,145 @@ function SortableUnit({
 
       {/* Unit Topics Section */}
       <div className="p-4 space-y-3.5">
-        {unit.topics.length > 0 ? (
+        {unit.topics.length > 0 && (
           <div className="space-y-2">
-            {unit.topics.map((topic: any) => {
-              const hasStats = topicStats && topicStats[topic.id] !== undefined;
-              const completionCount = hasStats ? topicStats[topic.id] : 0;
-              const totalM = totalMembers || 0;
+            <AnimatePresence initial={false}>
+              {unit.topics.map((topic: any) => {
+                const isEditingTopic = editingTopicId === topic.id;
 
-              return (
-                <div 
-                  key={topic.id}
-                  className={cn(
-                    "flex items-start justify-between gap-4 p-3.5 rounded-xl border border-border/60 bg-surface/50 hover:bg-muted/10 transition-all",
-                    topic.completed && "bg-muted/5 border-border/40"
-                  )}
-                >
-                  <div className="flex items-start gap-3 min-w-0">
-                    <Checkbox
-                      checked={topic.completed}
-                      onCheckedChange={(checked) => onToggleTopic(topic.id, !!checked)}
-                      className="mt-0.5 rounded-[4px] cursor-pointer"
-                    />
-                    <div className="min-w-0 space-y-1">
-                      <p className={cn(
-                        "text-xs font-bold text-foreground leading-snug truncate",
-                        topic.completed && "line-through text-muted-foreground/60 font-semibold"
-                      )}>
-                        {topic.title}
-                      </p>
-                      {topic.description && (
-                        <p className="text-[10px] text-muted-foreground leading-normal line-clamp-2">
-                          {topic.description}
-                        </p>
-                      )}
-                      
-                      {/* Topic Attachment Badge */}
-                      {topic.materialId && (
-                        <div className="inline-flex items-center gap-1 text-[9px] font-bold text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded-md mt-1">
-                          <Link2 className="size-2.5" />
-                          <span>Resource Reference Attached</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Topic Stats / Controls */}
-                  <div className="flex items-center gap-3 shrink-0 ml-auto self-center">
-                    {/* Completion stats for admins */}
-                    {isAdminOrOwner && totalM > 0 && (
-                      <span className="text-[8px] font-black uppercase tracking-wider text-muted-foreground bg-muted px-2 py-0.5 rounded-md border" title="Hive completions count">
-                        {completionCount}/{totalM} Completed
-                      </span>
+                return (
+                  <motion.div 
+                    key={topic.id}
+                    layoutId={topic.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, x: -10 }}
+                    transition={{ duration: 0.15 }}
+                    className={cn(
+                      "flex items-center justify-between gap-4 p-3 rounded-xl border border-border/60 bg-surface/50 hover:bg-muted/10 transition-all",
+                      topic.completed && "bg-muted/5 border-border/40"
                     )}
-
-                    {isMemberOrAbove && (
-                      <div className="flex items-center gap-1 shrink-0">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => onEditTopic(topic)}
-                          className="size-7 text-muted-foreground hover:text-foreground rounded-lg cursor-pointer"
-                        >
-                          <Edit3 className="size-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => onDeleteTopic(topic.id)}
-                          className="size-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
+                  >
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <Checkbox
+                        checked={topic.completed}
+                        onCheckedChange={(checked) => onToggleTopic(topic.id, !!checked)}
+                        className="rounded-[4px] cursor-pointer shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        {isEditingTopic ? (
+                          <Input
+                            value={editingTopicTitle}
+                            onChange={(e) => onEditingTopicTitleChange(e.target.value)}
+                            className="h-8 text-xs py-1 px-2 focus-visible:ring-1 bg-transparent w-full"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && editingTopicTitle.trim() !== topic.title && editingTopicTitle.trim().length > 0) {
+                                onSaveEditTopic(topic.id, editingTopicTitle);
+                              } else if (e.key === "Escape") {
+                                onCancelEditTopic();
+                              }
+                            }}
+                            autoFocus
+                          />
+                        ) : (
+                          <div className="flex items-center gap-2 truncate">
+                            <p className={cn(
+                              "text-xs font-bold text-foreground leading-none truncate",
+                              topic.completed && "line-through text-muted-foreground/60 font-semibold"
+                            )}>
+                              {capitalize(topic.title)}
+                            </p>
+                            {/* Topic Attachment Badge */}
+                            {topic.materialId && (
+                              <div className="inline-flex items-center gap-0.5 text-[8px] font-bold text-primary bg-primary/10 border border-primary/20 px-1 py-0.2 rounded-md shrink-0">
+                                <Link2 className="size-2" />
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="text-center py-6 text-muted-foreground/50 border border-dashed border-border/60 rounded-xl flex flex-col items-center justify-center gap-1">
-            <BookOpen className="size-5 mb-0.5 opacity-40" />
-            <span className="text-[10px] font-bold">No topics added to this unit yet.</span>
+                    </div>
+
+                    {/* Topic Controls */}
+                    <div className="flex items-center gap-1.5 shrink-0 ml-auto self-center">
+                      <div className="flex items-center gap-1 shrink-0">
+                        {isEditingTopic ? (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              disabled={editingTopicTitle.trim() === topic.title || editingTopicTitle.trim().length === 0}
+                              onClick={() => onSaveEditTopic(topic.id, editingTopicTitle)}
+                              className="size-7 text-primary hover:text-primary hover:bg-primary/10 rounded-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              <Check className="size-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={onCancelEditTopic}
+                              className="size-7 text-muted-foreground hover:text-foreground rounded-lg cursor-pointer"
+                            >
+                              <X className="size-3.5" />
+                            </Button>
+                          </>
+                        ) : (
+                          isMemberOrAbove && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => onStartEditTopic(topic.id, topic.title)}
+                                className="size-7 text-muted-foreground hover:text-foreground rounded-lg cursor-pointer"
+                              >
+                                <Edit3 className="size-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => onDeleteTopic(topic.id)}
+                                className="size-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer"
+                              >
+                                <Trash2 className="size-3.5" />
+                              </Button>
+                            </>
+                          )
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
           </div>
         )}
 
         {isMemberOrAbove && (
-          <Button
-            variant="outline"
-            size="xs"
-            onClick={() => onAddTopic(unit.id)}
-            className="w-full text-[10px] font-bold gap-1 rounded-xl h-8 border-border/80 text-muted-foreground hover:text-foreground cursor-pointer hover:bg-muted/30"
-          >
-            <Plus className="size-3.5" />
-            Add Topic to Unit
-          </Button>
+          <div className="flex items-center gap-2 border border-border/80 rounded-xl p-1 bg-transparent">
+            <Input
+              value={newTopicTitle}
+              onChange={(e) => onNewTopicTitleChange(e.target.value)}
+              placeholder="Add topic title & press Enter..."
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && newTopicTitle.trim().length > 0) {
+                  onAddTopic();
+                }
+              }}
+              className="h-8 focus-visible:ring-1 text-xs flex-1 bg-transparent border-none px-2 focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
+            />
+            {newTopicTitle.trim().length > 0 && (
+              <Button
+                onClick={onAddTopic}
+                size="icon"
+                className="size-7 rounded-lg cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90 shrink-0"
+              >
+                <Plus className="size-4" />
+              </Button>
+            )}
+          </div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -249,20 +377,17 @@ export default function HiveSyllabusPage({ params }: PageProps) {
   const isAdminOrOwner = userRole === "owner" || userRole === "admin";
   const isMemberOrAbove = isAdminOrOwner || userRole === "member";
 
-  // Dialog / Form States
-  const [unitDialogOpen, setUnitDialogOpen] = React.useState(false);
-  const [topicDialogOpen, setTopicDialogOpen] = React.useState(false);
+  // Inline unit/topic creation states
+  const [newUnitTitle, setNewUnitTitle] = React.useState("");
+  const [newTopicTitles, setNewTopicTitles] = React.useState<Record<string, string>>({});
 
-  // Unit form fields
+  // Inline unit editing states
   const [editingUnitId, setEditingUnitId] = React.useState<string | null>(null);
-  const [unitTitle, setUnitTitle] = React.useState("");
+  const [editingUnitTitle, setEditingUnitTitle] = React.useState("");
 
-  // Topic form fields
+  // Inline topic editing states
   const [editingTopicId, setEditingTopicId] = React.useState<string | null>(null);
-  const [topicUnitId, setTopicUnitId] = React.useState("");
-  const [topicTitle, setTopicTitle] = React.useState("");
-  const [topicDesc, setTopicDesc] = React.useState("");
-  const [topicMaterialId, setTopicMaterialId] = React.useState<string | null>(null);
+  const [editingTopicTitle, setEditingTopicTitle] = React.useState("");
 
   // Queries
   const { data: syllabus = [], isLoading, isError } = api.syllabus.getSyllabus.useQuery(
@@ -339,8 +464,7 @@ export default function HiveSyllabusPage({ params }: PageProps) {
     },
     onSuccess: () => {
       toast.success("Syllabus unit created!");
-      setUnitDialogOpen(false);
-      setUnitTitle("");
+      setNewUnitTitle("");
     },
     onSettled: () => {
       utils.syllabus.getSyllabus.invalidate({ hiveId });
@@ -367,9 +491,8 @@ export default function HiveSyllabusPage({ params }: PageProps) {
     },
     onSuccess: () => {
       toast.success("Unit updated!");
-      setUnitDialogOpen(false);
       setEditingUnitId(null);
-      setUnitTitle("");
+      setEditingUnitTitle("");
     },
     onSettled: () => {
       utils.syllabus.getSyllabus.invalidate({ hiveId });
@@ -414,9 +537,8 @@ export default function HiveSyllabusPage({ params }: PageProps) {
           const tempTopic = {
             id: "temp-topic-" + Math.random().toString(),
             title: newTopic.title,
-            description: newTopic.description ?? null,
             unitId: newTopic.unitId,
-            materialId: newTopic.materialId ?? null,
+            materialId: null,
             completed: false,
             position: unit.topics.length,
             createdAt: new Date().toISOString(),
@@ -439,12 +561,9 @@ export default function HiveSyllabusPage({ params }: PageProps) {
       }
       toast.error("Something went wrong. Failed to create topic.");
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       toast.success("Syllabus topic created!");
-      setTopicDialogOpen(false);
-      setTopicTitle("");
-      setTopicDesc("");
-      setTopicMaterialId(null);
+      setNewTopicTitles((prev) => ({ ...prev, [variables.unitId]: "" }));
     },
     onSettled: () => {
       utils.syllabus.getSyllabus.invalidate({ hiveId });
@@ -464,8 +583,7 @@ export default function HiveSyllabusPage({ params }: PageProps) {
             t.id === variables.id 
               ? { 
                   ...t, 
-                  title: variables.title !== undefined ? variables.title : t.title, 
-                  description: variables.description !== undefined ? variables.description : t.description,
+                  title: variables.title !== undefined ? variables.title : t.title,
                   materialId: variables.materialId !== undefined ? variables.materialId : t.materialId 
                 } 
               : t
@@ -483,11 +601,8 @@ export default function HiveSyllabusPage({ params }: PageProps) {
     },
     onSuccess: () => {
       toast.success("Topic updated!");
-      setTopicDialogOpen(false);
       setEditingTopicId(null);
-      setTopicTitle("");
-      setTopicDesc("");
-      setTopicMaterialId(null);
+      setEditingTopicTitle("");
     },
     onSettled: () => {
       utils.syllabus.getSyllabus.invalidate({ hiveId });
@@ -573,50 +688,40 @@ export default function HiveSyllabusPage({ params }: PageProps) {
     }
   };
 
-  // Submit Handlers
-  const handleSaveUnit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!unitTitle.trim()) return;
-
-    if (editingUnitId) {
-      updateUnitMutation.mutate({ id: editingUnitId, title: unitTitle });
-    } else {
-      createUnitMutation.mutate({ hiveId, title: unitTitle });
-    }
+  // Add unit handler
+  const handleCreateUnit = () => {
+    if (!newUnitTitle.trim()) return;
+    const title = newUnitTitle.trim();
+    setNewUnitTitle("");
+    createUnitMutation.mutate({ hiveId, title });
   };
 
-  const handleSaveTopic = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!topicTitle.trim()) return;
-
-    if (editingTopicId) {
-      updateTopicMutation.mutate({
-        id: editingTopicId,
-        title: topicTitle,
-        description: topicDesc || null,
-        materialId: topicMaterialId || null,
-      });
-    } else {
-      createTopicMutation.mutate({
-        unitId: topicUnitId,
-        title: topicTitle,
-        description: topicDesc || null,
-        materialId: topicMaterialId || null,
-      });
-    }
+  // Add topic handler
+  const handleCreateTopic = (unitId: string) => {
+    const title = newTopicTitles[unitId] || "";
+    if (!title.trim()) return;
+    setNewTopicTitles((prev) => ({ ...prev, [unitId]: "" }));
+    createTopicMutation.mutate({
+      unitId,
+      title: title.trim(),
+      materialId: null,
+    });
   };
 
-  // Unit Dialog triggers
-  const triggerAddUnit = () => {
-    setEditingUnitId(null);
-    setUnitTitle("");
-    setUnitDialogOpen(true);
-  };
-
-  const triggerEditUnit = (id: string, title: string) => {
+  // Unit Edit handlers
+  const handleStartEditUnit = (id: string, currentTitle: string) => {
     setEditingUnitId(id);
-    setUnitTitle(title);
-    setUnitDialogOpen(true);
+    setEditingUnitTitle(currentTitle);
+  };
+
+  const handleCancelEditUnit = () => {
+    setEditingUnitId(null);
+    setEditingUnitTitle("");
+  };
+
+  const handleSaveEditUnit = (id: string, title: string) => {
+    if (!title.trim()) return;
+    updateUnitMutation.mutate({ id, title: title.trim() });
   };
 
   const handleDeleteUnit = (id: string) => {
@@ -625,22 +730,20 @@ export default function HiveSyllabusPage({ params }: PageProps) {
     }
   };
 
-  // Topic Dialog triggers
-  const triggerAddTopic = (unitId: string) => {
-    setEditingTopicId(null);
-    setTopicUnitId(unitId);
-    setTopicTitle("");
-    setTopicDesc("");
-    setTopicMaterialId(null);
-    setTopicDialogOpen(true);
+  // Topic Edit handlers
+  const handleStartEditTopic = (id: string, currentTitle: string) => {
+    setEditingTopicId(id);
+    setEditingTopicTitle(currentTitle);
   };
 
-  const triggerEditTopic = (topic: any) => {
-    setEditingTopicId(topic.id);
-    setTopicTitle(topic.title);
-    setTopicDesc(topic.description || "");
-    setTopicMaterialId(topic.materialId || null);
-    setTopicDialogOpen(true);
+  const handleCancelEditTopic = () => {
+    setEditingTopicId(null);
+    setEditingTopicTitle("");
+  };
+
+  const handleSaveEditTopic = (id: string, title: string) => {
+    if (!title.trim()) return;
+    updateTopicMutation.mutate({ id, title: title.trim() });
   };
 
   const handleDeleteTopic = (id: string) => {
@@ -655,7 +758,7 @@ export default function HiveSyllabusPage({ params }: PageProps) {
   const totalProgressPercent = totalTopicsCount > 0 ? Math.round((completedTopicsCount / totalTopicsCount) * 100) : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 font-sans">
       {/* Syllabus Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -667,15 +770,6 @@ export default function HiveSyllabusPage({ params }: PageProps) {
             Track milestones, course topics, and syllabus goals with your hive.
           </p>
         </div>
-        {isMemberOrAbove && (
-          <Button
-            onClick={triggerAddUnit}
-            className="bg-primary text-primary-foreground hover:bg-primary/95 font-bold text-xs h-9.5 px-4 rounded-xl shadow-xs cursor-pointer gap-1.5"
-          >
-            <Plus className="size-4.5" />
-            Add Unit
-          </Button>
-        )}
       </div>
 
       {isLoading ? (
@@ -693,6 +787,32 @@ export default function HiveSyllabusPage({ params }: PageProps) {
           
           {/* Syllabus Units Accordion List */}
           <div className="lg:col-span-2 space-y-4">
+            {isMemberOrAbove && (
+              <div className="flex items-center gap-2 w-full bg-transparent p-3 rounded-2xl border border-border/80">
+                <Input
+                  value={newUnitTitle}
+                  onChange={(e) => setNewUnitTitle(e.target.value)}
+                  placeholder="Type new unit title and press Enter..."
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleCreateUnit();
+                    }
+                  }}
+                  className="h-9 focus-visible:ring-1 text-xs flex-1 bg-transparent border-none focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none px-2"
+                />
+                {newUnitTitle.trim().length > 0 && (
+                  <Button
+                    onClick={handleCreateUnit}
+                    disabled={createUnitMutation.isPending}
+                    size="icon"
+                    className="size-9 rounded-xl cursor-pointer bg-primary text-primary-foreground hover:bg-primary/95 shrink-0"
+                  >
+                    {createUnitMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4.5" />}
+                  </Button>
+                )}
+              </div>
+            )}
+
             {syllabus.length > 0 ? (
               <DndContext
                 sensors={sensors}
@@ -704,22 +824,42 @@ export default function HiveSyllabusPage({ params }: PageProps) {
                   strategy={verticalListSortingStrategy}
                 >
                   <div className="space-y-4">
-                    {syllabus.map((unit) => (
-                      <SortableUnit
-                        key={unit.id}
-                        unit={unit}
-                        isAdminOrOwner={isAdminOrOwner}
-                        isMemberOrAbove={isMemberOrAbove}
-                        onEditUnit={triggerEditUnit}
-                        onDeleteUnit={handleDeleteUnit}
-                        onAddTopic={triggerAddTopic}
-                        onEditTopic={triggerEditTopic}
-                        onDeleteTopic={handleDeleteTopic}
-                        onToggleTopic={(topicId, completed) => toggleTopicMutation.mutate({ topicId, completed })}
-                        topicStats={statsData?.topicStats}
-                        totalMembers={statsData?.totalMembers}
-                      />
-                    ))}
+                    <AnimatePresence initial={false}>
+                      {syllabus.map((unit) => (
+                        <SortableUnit
+                          key={unit.id}
+                          unit={unit}
+                          isAdminOrOwner={isAdminOrOwner}
+                          isMemberOrAbove={isMemberOrAbove}
+                          onDeleteUnit={handleDeleteUnit}
+                          onDeleteTopic={handleDeleteTopic}
+                          onToggleTopic={(topicId, completed) => toggleTopicMutation.mutate({ topicId, completed })}
+                          topicStats={statsData?.topicStats}
+                          totalMembers={statsData?.totalMembers}
+                          
+                          // Unit inline editing
+                          editingUnitId={editingUnitId}
+                          editingUnitTitle={editingUnitTitle}
+                          onStartEditUnit={handleStartEditUnit}
+                          onCancelEditUnit={handleCancelEditUnit}
+                          onSaveEditUnit={handleSaveEditUnit}
+                          onEditingUnitTitleChange={setEditingUnitTitle}
+
+                          // Topic inline editing
+                          editingTopicId={editingTopicId}
+                          editingTopicTitle={editingTopicTitle}
+                          onStartEditTopic={handleStartEditTopic}
+                          onCancelEditTopic={handleCancelEditTopic}
+                          onSaveEditTopic={handleSaveEditTopic}
+                          onEditingTopicTitleChange={setEditingTopicTitle}
+
+                          // Topic inline adding
+                          newTopicTitle={newTopicTitles[unit.id] || ""}
+                          onNewTopicTitleChange={(val) => setNewTopicTitles({ ...newTopicTitles, [unit.id]: val })}
+                          onAddTopic={() => handleCreateTopic(unit.id)}
+                        />
+                      ))}
+                    </AnimatePresence>
                   </div>
                 </SortableContext>
               </DndContext>
@@ -779,112 +919,6 @@ export default function HiveSyllabusPage({ params }: PageProps) {
           </div>
         </div>
       )}
-
-      {/* Save Unit Dialog */}
-      <Dialog open={unitDialogOpen} onOpenChange={setUnitDialogOpen}>
-        <DialogContent className="max-w-md rounded-xl">
-          <form onSubmit={handleSaveUnit}>
-            <DialogHeader className="pb-4 border-b border-border dark:border-zinc-900">
-              <DialogTitle className="text-sm font-bold flex items-center gap-1.5">
-                <BookOpen className="size-4.5 text-primary" />
-                {editingUnitId ? "Edit Unit Title" : "Create New Unit"}
-              </DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground">
-                Define a major category or module of your course curriculum.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="py-4 space-y-4 text-xs font-semibold">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Unit Title</label>
-                <Input
-                  required
-                  value={unitTitle}
-                  onChange={(e) => setUnitTitle(e.target.value)}
-                  placeholder="e.g. Unit 1: Introduction to Cytology"
-                  className="h-9 focus-visible:ring-1 text-xs"
-                />
-              </div>
-            </div>
-
-            <DialogFooter className="pt-3 border-t border-border dark:border-zinc-900 gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setUnitDialogOpen(false)}
-                className="h-8.5 text-xs rounded-lg font-bold cursor-pointer"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                className="h-8.5 text-xs bg-primary text-primary-foreground hover:bg-primary/95 rounded-lg font-bold cursor-pointer shadow-xs"
-              >
-                {editingUnitId ? "Save Changes" : "Create Unit"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Save Topic Dialog */}
-      <Dialog open={topicDialogOpen} onOpenChange={setTopicDialogOpen}>
-        <DialogContent className="max-w-md rounded-xl">
-          <form onSubmit={handleSaveTopic}>
-            <DialogHeader className="pb-4 border-b border-border dark:border-zinc-900">
-              <DialogTitle className="text-sm font-bold flex items-center gap-1.5">
-                <CheckCircle2 className="size-4.5 text-primary" />
-                {editingTopicId ? "Edit Topic" : "Create New Topic"}
-              </DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground">
-                Add checking points or syllabus homework topics under this unit.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="py-4 space-y-4 text-xs font-semibold">
-              {/* Title */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Topic Title</label>
-                <Input
-                  required
-                  value={topicTitle}
-                  onChange={(e) => setTopicTitle(e.target.value)}
-                  placeholder="e.g. Structure of Mitochondria"
-                  className="h-9 focus-visible:ring-1 text-xs"
-                />
-              </div>
-
-              {/* Description */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Description (Optional)</label>
-                <Input
-                  value={topicDesc}
-                  onChange={(e) => setTopicDesc(e.target.value)}
-                  placeholder="Brief note, page numbers, or topics included..."
-                  className="h-9 focus-visible:ring-1 text-xs"
-                />
-              </div>
-            </div>
-
-            <DialogFooter className="pt-3 border-t border-border dark:border-zinc-900 gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setTopicDialogOpen(false)}
-                className="h-8.5 text-xs rounded-lg font-bold cursor-pointer"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                className="h-8.5 text-xs bg-primary text-primary-foreground hover:bg-primary/95 rounded-lg font-bold cursor-pointer shadow-xs"
-              >
-                {editingTopicId ? "Save Changes" : "Create Topic"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

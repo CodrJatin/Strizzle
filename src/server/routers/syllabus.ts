@@ -31,14 +31,12 @@ export const reorderUnitsSchema = z.object({
 export const createTopicSchema = z.object({
   unitId: z.string().uuid(),
   title: z.string().min(1, "Topic title is required").max(200),
-  description: z.string().optional().nullable(),
   materialId: z.string().uuid().optional().nullable(),
 });
 
 export const updateTopicSchema = z.object({
   id: z.string().uuid(),
   title: z.string().min(1).max(200).optional(),
-  description: z.string().optional().nullable(),
   materialId: z.string().uuid().optional().nullable(),
 });
 
@@ -321,7 +319,6 @@ export const syllabusRouter = createTRPCRouter({
               unitId: input.unitId,
               hiveId: unit.hiveId,
               title: input.title,
-              description: input.description ?? null,
               materialId: input.materialId || null,
               position: nextPos,
             })
@@ -378,7 +375,6 @@ export const syllabusRouter = createTRPCRouter({
         };
 
         if (input.title !== undefined) updates.title = input.title;
-        if (input.description !== undefined) updates.description = input.description;
         if (input.materialId !== undefined) updates.materialId = input.materialId;
 
         const [updatedTopic] = await ctx.db

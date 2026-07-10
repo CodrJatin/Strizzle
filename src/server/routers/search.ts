@@ -85,7 +85,6 @@ export const searchRouter = createTRPCRouter({
             .select({
               id: syllabusTopics.id,
               title: syllabusTopics.title,
-              description: syllabusTopics.description,
               hiveId: syllabusTopics.hiveId,
               hiveName: hives.name,
               courseCode: hives.courseCode,
