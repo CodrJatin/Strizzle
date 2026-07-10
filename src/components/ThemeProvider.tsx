@@ -11,11 +11,15 @@ interface ThemeProviderProps {
 export function ThemeProvider({ children, initialTheme }: ThemeProviderProps) {
   const setTheme = useThemeStore((s) => s.setTheme);
   const theme = useThemeStore((s) => s.theme);
+  const hasSynced = React.useRef(false);
 
-  // Sync server-side cookie theme value to Zustand store on mount
+  // Sync server-side cookie theme value to Zustand store on mount only once
   React.useEffect(() => {
-    if (initialTheme && initialTheme !== theme) {
-      setTheme(initialTheme);
+    if (!hasSynced.current) {
+      hasSynced.current = true;
+      if (initialTheme && initialTheme !== theme) {
+        setTheme(initialTheme);
+      }
     }
   }, [initialTheme, setTheme, theme]);
 

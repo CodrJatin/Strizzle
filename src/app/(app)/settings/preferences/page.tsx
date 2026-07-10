@@ -40,6 +40,9 @@ export default function PreferencesPage() {
     onError: (err, _variables, context) => {
       if (context?.previousPrefs) {
         utils.user.getPreferences.setData(undefined, context.previousPrefs);
+        if (context.previousPrefs.theme) {
+          setTheme(context.previousPrefs.theme);
+        }
       }
       toast.error(err.message || "Something went wrong. Please try again.");
     },
@@ -48,6 +51,7 @@ export default function PreferencesPage() {
     },
     onSettled: () => {
       utils.user.getPreferences.invalidate();
+      utils.user.getMe.invalidate();
     }
   });
 
@@ -55,30 +59,38 @@ export default function PreferencesPage() {
   const [matchSystem, setMatchSystem] = React.useState(false);
   const [defaultCalView, setDefaultCalView] = React.useState<"week" | "day" | "month">("week");
 
-  // Sync state once preferences load
+  const hasInitialized = React.useRef(false);
+
+  // Sync database preferences to active theme and local calendar view on load
   React.useEffect(() => {
-    if (preferences) {
-      if (preferences.theme === "system") {
-        setMatchSystem(true);
-        setSelectedTheme("default");
-      } else {
-        setMatchSystem(false);
-        setSelectedTheme(preferences.theme);
+    if (preferences && !hasInitialized.current) {
+      hasInitialized.current = true;
+      if (preferences.theme) {
+        setTheme(preferences.theme);
       }
       setDefaultCalView(preferences.defaultCalView as "week" | "day" | "month");
     }
-  }, [preferences]);
+  }, [preferences, setTheme]);
 
-  const handleThemeSelect = (themeName: string) => {
-    if (matchSystem) return;
-    setSelectedTheme(themeName);
-    setTheme(themeName);
-  };
+  // Sync local states whenever the Zustand store's theme changes
+  React.useEffect(() => {
+    if (currentTheme === "system") {
+      setMatchSystem(true);
+    } else {
+      setMatchSystem(false);
+      setSelectedTheme(currentTheme);
+    }
+  }, [currentTheme]);
 
-  const handleSystemToggle = (checked: boolean) => {
-    setMatchSystem(checked);
-    const newThemeValue = checked ? "system" : selectedTheme;
-    setTheme(newThemeValue);
+  const handleThemeChange = (themeName: string) => {
+    if (themeName === "system") {
+      setMatchSystem(true);
+      setTheme("system");
+    } else {
+      setMatchSystem(false);
+      setSelectedTheme(themeName);
+      setTheme(themeName);
+    }
   };
 
   const handleSave = () => {
@@ -196,14 +208,7 @@ export default function PreferencesPage() {
           return (
             <div
               key={t.name}
-              onClick={() => {
-                if (t.name === "system") {
-                  handleSystemToggle(true);
-                } else {
-                  handleSystemToggle(false);
-                  handleThemeSelect(t.name);
-                }
-              }}
+              onClick={() => handleThemeChange(t.name)}
               className={cn(
                 "group flex flex-col gap-2 cursor-pointer rounded-2xl border p-2 transition-all relative",
                 isSelected
@@ -252,7 +257,7 @@ export default function PreferencesPage() {
           <input
             type="checkbox"
             checked={matchSystem}
-            onChange={(e) => handleSystemToggle(e.target.checked)}
+            onChange={(e) => handleThemeChange(e.target.checked ? "system" : selectedTheme)}
             className="sr-only peer"
           />
           <div className="w-9 h-5 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-background after:border-border after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary" />

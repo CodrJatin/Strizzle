@@ -21,6 +21,7 @@ import { QuickAddModal } from "@/components/QuickAddModal";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { UserProfilePopover } from "@/components/UserProfilePopover";
 import { IOSOnboardingBanner } from "@/components/IOSOnboardingBanner";
+import { useThemeStore } from "@/store/themeStore";
 
 // Define navigation item interface
 interface NavItem {
@@ -49,6 +50,20 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
     staleTime: 900000, // 15 mins
     retry: false,
   });
+
+  // Sync database theme preference to Zustand store on load (once)
+  const theme = useThemeStore((s) => s.theme);
+  const setTheme = useThemeStore((s) => s.setTheme);
+  const hasSyncedDBTheme = React.useRef(false);
+
+  React.useEffect(() => {
+    if (me?.preferences?.theme && !hasSyncedDBTheme.current) {
+      hasSyncedDBTheme.current = true;
+      if (me.preferences.theme !== theme) {
+        setTheme(me.preferences.theme);
+      }
+    }
+  }, [me?.preferences?.theme, setTheme, theme]);
 
   // Determine path context
   const getContext = (): { type: "workspace" | "library" | "desk" | "hive" | "calendar" | "settings" | "community"; id?: string } => {
