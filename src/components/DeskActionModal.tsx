@@ -49,11 +49,11 @@ export function DeskActionModal({ item, isOpen, onClose }: DeskActionModalProps)
   const [taskPriority, setTaskPriority] = React.useState<"low" | "medium" | "high" | "urgent">("medium");
   const [taskDueDate, setTaskDueDate] = React.useState("");
 
-  // Form Fields - Share to Hive (Mocked)
-  const [selectedHive, setSelectedHive] = React.useState("bio-101");
-  const [selectedFolder, setSelectedFolder] = React.useState("lectures");
+  // Form Fields - Share to Hive
+  const [selectedHive, setSelectedHive] = React.useState("");
+  const [selectedFolder, setSelectedFolder] = React.useState("");
 
-  // Form Fields - Post Announcement (Mocked)
+  // Form Fields - Post Announcement
   const [announcementTitle, setAnnouncementTitle] = React.useState(`New Resource: ${material.title || "Untitled"}`);
   const [announcementBody, setAnnouncementBody] = React.useState(
     material.contentType === "text" 
@@ -61,10 +61,58 @@ export function DeskActionModal({ item, isOpen, onClose }: DeskActionModalProps)
       : `Check out this captured resource: ${material.url || ""}`
   );
 
+  // Queries
+  const { data: hivesData, isLoading: isLoadingHives } = api.hive.getUserHives.useQuery(undefined, {
+    staleTime: 120000,
+  });
+
+  const hives = hivesData || [];
+
+  // Filter hives based on role for each action type
+  const allowedHives = React.useMemo(() => {
+    if (selectedAction === "hive") {
+      return hives.filter(h => h.role === "owner" || h.role === "admin" || h.role === "member");
+    }
+    if (selectedAction === "announcement") {
+      return hives.filter(h => h.role === "owner" || h.role === "admin");
+    }
+    return hives;
+  }, [hives, selectedAction]);
+
+  // Set default selected hive when allowedHives changes
+  React.useEffect(() => {
+    if (allowedHives.length > 0) {
+      const exists = allowedHives.some(h => h.id === selectedHive);
+      if (!exists) {
+        setSelectedHive(allowedHives[0].id);
+      }
+    } else {
+      setSelectedHive("");
+    }
+  }, [allowedHives, selectedHive]);
+
+  // Fetch folders for selected hive
+  const { data: foldersData, isLoading: isLoadingFolders } = api.folder.getHiveFolders.useQuery(
+    { hiveId: selectedHive },
+    {
+      enabled: !!selectedHive && selectedAction === "hive",
+      staleTime: 300000,
+    }
+  );
+
+  const folders = foldersData?.items || [];
+
+  // Reset folder selection when hive changes
+  React.useEffect(() => {
+    setSelectedFolder("");
+  }, [selectedHive]);
+
   // Mutations
   const addToLibrary = api.library.addToLibrary.useMutation();
   const updateMaterial = api.material.updateMaterial.useMutation();
   const createTask = api.task.createTask.useMutation();
+  const shareMaterialToHive = api.hiveMaterial.shareMaterialToHive.useMutation();
+  const createAnnouncement = api.announcement.createAnnouncement.useMutation();
   const deleteShelfItem = api.shelf.deleteShelfItem.useMutation({
     onMutate: async (variables) => {
       await utils.shelf.getShelfItems.cancel();
@@ -208,6 +256,7 @@ export function DeskActionModal({ item, isOpen, onClose }: DeskActionModalProps)
               tags,
             });
           }
+          toast.success("Saved to Library!");
         } else if (selectedAction === "task") {
           // Convert to Task
           await createTask.mutateAsync({
@@ -218,12 +267,29 @@ export function DeskActionModal({ item, isOpen, onClose }: DeskActionModalProps)
             source: "shelf_converted",
             sourceRefId: material.id,
           });
+          toast.success("Task created successfully!");
         } else if (selectedAction === "hive") {
-          // Share to Hive (Mocked for Phase 2)
-          toast.success(`Mock Shared to study group (Folder: ${selectedFolder})`);
+          // Share to Hive
+          if (!selectedHive) {
+            throw new Error("No study hive group selected.");
+          }
+          await shareMaterialToHive.mutateAsync({
+            materialId: material.id,
+            hiveId: selectedHive,
+            folderId: selectedFolder || null,
+          });
+          toast.success("Material shared to hive successfully!");
         } else if (selectedAction === "announcement") {
-          // Post Announcement (Mocked for Phase 2)
-          toast.success(`Mock Announcement posted: "${announcementTitle}"`);
+          // Post Announcement
+          if (!selectedHive) {
+            throw new Error("No study hive target selected.");
+          }
+          await createAnnouncement.mutateAsync({
+            hiveId: selectedHive,
+            title: announcementTitle,
+            body: announcementBody,
+          });
+          toast.success("Announcement posted successfully!");
         }
 
         // 2. Execute Post-Action Lifecycle Choice
@@ -236,7 +302,13 @@ export function DeskActionModal({ item, isOpen, onClose }: DeskActionModalProps)
         // 3. Invalidate caches
         utils.shelf.getShelfItems.invalidate();
         utils.library.getLibraryMaterials.invalidate();
-        toast.success("Resource organized successfully!");
+
+        if (selectedAction === "hive") {
+          utils.hiveMaterial.getHiveMaterials.invalidate({ hiveId: selectedHive });
+          utils.hive.getHiveOverview.invalidate({ hiveId: selectedHive });
+        } else if (selectedAction === "announcement") {
+          utils.hive.getHiveOverview.invalidate({ hiveId: selectedHive });
+        }
       } catch (err: any) {
         console.error(err);
         if (previousShelfItems) {
@@ -401,85 +473,115 @@ export function DeskActionModal({ item, isOpen, onClose }: DeskActionModalProps)
               {/* ACTION: SHARE TO HIVE */}
               {selectedAction === "hive" && (
                 <div className="space-y-4">
-                  <div className="flex gap-2.5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-500">
-                    <Info className="size-4 shrink-0 mt-0.5" />
-                    <p className="text-[10px] font-medium leading-normal">
-                      Hives are scheduled for Phase 3. You can select parameters here to test visual layout. No real shares are made yet.
-                    </p>
-                  </div>
-
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold">Study Hive Group</Label>
-                    <select
-                      value={selectedHive}
-                      onChange={(e) => setSelectedHive(e.target.value)}
-                      className="w-full bg-background border border-input rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-primary focus:outline-none"
-                    >
-                      <option value="bio-101">Biology 101 (Spring 2026)</option>
-                      <option value="chem-201">Chemistry 201 (Spring 2026)</option>
-                    </select>
+                    {isLoadingHives ? (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                        <Loader2 className="size-3.5 animate-spin text-primary" />
+                        <span>Loading hives...</span>
+                      </div>
+                    ) : allowedHives.length === 0 ? (
+                      <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-xl p-3">
+                        You are not a member of any study hives yet. You must join or create a hive first.
+                      </div>
+                    ) : (
+                      <select
+                        value={selectedHive}
+                        onChange={(e) => setSelectedHive(e.target.value)}
+                        className="w-full bg-background border border-input rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-primary focus:outline-none"
+                      >
+                        {allowedHives.map((h) => (
+                          <option key={h.id} value={h.id}>
+                            {h.name} {h.courseCode ? `(${h.courseCode})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
 
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">Hive Folder Location</Label>
-                    <select
-                      value={selectedFolder}
-                      onChange={(e) => setSelectedFolder(e.target.value)}
-                      className="w-full bg-background border border-input rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-primary focus:outline-none"
-                    >
-                      <option value="lectures">Lectures & Notes</option>
-                      <option value="syllabus">Syllabus References</option>
-                      <option value="exams">Exam Prep</option>
-                    </select>
-                  </div>
+                  {allowedHives.length > 0 && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold">Hive Folder Location</Label>
+                      {isLoadingFolders ? (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                          <Loader2 className="size-3.5 animate-spin text-primary" />
+                          <span>Loading folders...</span>
+                        </div>
+                      ) : (
+                        <select
+                          value={selectedFolder}
+                          onChange={(e) => setSelectedFolder(e.target.value)}
+                          className="w-full bg-background border border-input rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-primary focus:outline-none"
+                        >
+                          <option value="">Root / No Folder</option>
+                          {folders.map((f) => (
+                            <option key={f.id} value={f.id}>
+                              {f.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
               {/* ACTION: POST ANNOUNCEMENT */}
               {selectedAction === "announcement" && (
                 <div className="space-y-3.5">
-                  <div className="flex gap-2.5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-500">
-                    <Info className="size-4 shrink-0 mt-0.5" />
-                    <p className="text-[10px] font-medium leading-normal">
-                      Announcements are scheduled for Phase 3. Feeds are simulated for testing here.
-                    </p>
-                  </div>
-
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold">Study Hive Target</Label>
-                    <select
-                      value={selectedHive}
-                      onChange={(e) => setSelectedHive(e.target.value)}
-                      className="w-full bg-background border border-input rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-primary focus:outline-none"
-                    >
-                      <option value="bio-101">Biology 101 (Spring 2026)</option>
-                      <option value="chem-201">Chemistry 201 (Spring 2026)</option>
-                    </select>
+                    {isLoadingHives ? (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                        <Loader2 className="size-3.5 animate-spin text-primary" />
+                        <span>Loading hives...</span>
+                      </div>
+                    ) : allowedHives.length === 0 ? (
+                      <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-xl p-3">
+                        You must be an admin or owner of a study hive to post announcements.
+                      </div>
+                    ) : (
+                      <select
+                        value={selectedHive}
+                        onChange={(e) => setSelectedHive(e.target.value)}
+                        className="w-full bg-background border border-input rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-primary focus:outline-none"
+                      >
+                        {allowedHives.map((h) => (
+                          <option key={h.id} value={h.id}>
+                            {h.name} {h.courseCode ? `(${h.courseCode})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
 
-                  <div className="space-y-1">
-                    <Label htmlFor="ann-title" className="text-xs font-semibold">Announcement Title</Label>
-                    <Input
-                      id="ann-title"
-                      placeholder="Title of feed announcement..."
-                      value={announcementTitle}
-                      onChange={(e) => setAnnouncementTitle(e.target.value)}
-                      className="rounded-xl border border-input text-xs h-9.5"
-                      required
-                    />
-                  </div>
+                  {allowedHives.length > 0 && (
+                    <>
+                      <div className="space-y-1">
+                        <Label htmlFor="ann-title" className="text-xs font-semibold">Announcement Title</Label>
+                        <Input
+                          id="ann-title"
+                          placeholder="Title of feed announcement..."
+                          value={announcementTitle}
+                          onChange={(e) => setAnnouncementTitle(e.target.value)}
+                          className="rounded-xl border border-input text-xs h-9.5"
+                          required
+                        />
+                      </div>
 
-                  <div className="space-y-1">
-                    <Label htmlFor="ann-body" className="text-xs font-semibold">Announcement Body</Label>
-                    <Textarea
-                      id="ann-body"
-                      placeholder="Announce details to members..."
-                      value={announcementBody}
-                      onChange={(e) => setAnnouncementBody(e.target.value)}
-                      className="min-h-[80px] text-xs rounded-xl border border-input p-2.5 resize-none"
-                      required
-                    />
-                  </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="ann-body" className="text-xs font-semibold">Announcement Body</Label>
+                        <Textarea
+                          id="ann-body"
+                          placeholder="Announce details to members..."
+                          value={announcementBody}
+                          onChange={(e) => setAnnouncementBody(e.target.value)}
+                          className="min-h-[80px] text-xs rounded-xl border border-input p-2.5 resize-none"
+                          required
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -525,7 +627,11 @@ export function DeskActionModal({ item, isOpen, onClose }: DeskActionModalProps)
               <Button
                 type="submit"
                 className="bg-primary text-primary-foreground hover:bg-primary/95 rounded-xl px-5 py-2 text-xs font-semibold flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
-                disabled={submitting}
+                disabled={
+                  submitting ||
+                  isLoadingHives ||
+                  ((selectedAction === "hive" || selectedAction === "announcement") && allowedHives.length === 0)
+                }
               >
                 {submitting ? (
                   <>
