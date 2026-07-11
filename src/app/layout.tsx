@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import "./globals.css";
 import { TRPCProvider } from "@/lib/trpc/provider";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { Toaster } from "@/components/ui/sonner";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -64,6 +65,7 @@ export default async function RootLayout({
         <TRPCProvider>
           <ThemeProvider initialTheme={themeCookie}>
             {children}
+            <Toaster />
           </ThemeProvider>
         </TRPCProvider>
       </body>
