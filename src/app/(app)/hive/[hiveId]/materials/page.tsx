@@ -23,6 +23,7 @@ import { Progress } from "@/components/ui/progress";
 import { api } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import { hashFile } from "@/lib/hashFile";
+import { useConfirmStore } from "@/store/confirmStore";
 
 interface PageProps {
   params: Promise<{ hiveId: string }>;
@@ -54,6 +55,7 @@ export default function MaterialsPage({ params }: PageProps) {
   const { hiveId } = React.use(params);
   const router = useRouter();
   const utils = api.useUtils();
+  const confirm = useConfirmStore((s) => s.confirm);
 
   // Queries
   const { data: hive, isLoading: isLoadingHive } = api.hive.getHive.useQuery(
@@ -186,7 +188,6 @@ export default function MaterialsPage({ params }: PageProps) {
 
   const deleteFolderMutation = api.folder.deleteFolder.useMutation({
     onMutate: async (variables) => {
-      setDeleteDialogOpen(false);
       setTargetFolder(null);
       if (selectedFolderId === variables.folderId) {
         setSelectedFolderId(null);
@@ -210,7 +211,6 @@ export default function MaterialsPage({ params }: PageProps) {
     },
     onSuccess: () => {
       toast.success("Folder deleted successfully!");
-      setDeleteDialogOpen(false);
       setTargetFolder(null);
       if (selectedFolderId === targetFolder?.id) {
         setSelectedFolderId(null);
@@ -299,7 +299,6 @@ export default function MaterialsPage({ params }: PageProps) {
   const [renameDialogOpen, setRenameDialogOpen] = React.useState(false);
   const [editFolderName, setEditFolderName] = React.useState("");
   const [targetFolder, setTargetFolder] = React.useState<FolderNode | null>(null);
-  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
 
   // Folder tree builder
   const folderTree = React.useMemo(() => {
@@ -672,10 +671,17 @@ export default function MaterialsPage({ params }: PageProps) {
     setRenameDialogOpen(true);
   };
 
-  const openDeleteFolder = (folder: FolderNode, e: React.MouseEvent) => {
+  const openDeleteFolder = async (folder: FolderNode, e: React.MouseEvent) => {
     e.stopPropagation();
-    setTargetFolder(folder);
-    setDeleteDialogOpen(true);
+    const confirmed = await confirm({
+      title: "Delete Folder",
+      description: `Are you sure you want to delete the folder "${folder.name}" and all of its contents? Any subfolders will also be deleted. All shared materials inside this folder structure will be preserved and moved to the workspace root.`,
+      confirmText: "Delete",
+      variant: "destructive",
+    });
+    if (confirmed) {
+      deleteFolderMutation.mutate({ folderId: folder.id });
+    }
   };
 
   const handleFolderCreateSubmit = () => {
@@ -686,8 +692,14 @@ export default function MaterialsPage({ params }: PageProps) {
     });
   };
 
-  const handleUnshare = (shareId: string) => {
-    if (confirm("Are you sure you want to unshare this material from the workspace?")) {
+  const handleUnshare = async (shareId: string) => {
+    const confirmed = await confirm({
+      title: "Unshare Material",
+      description: "Are you sure you want to unshare this material from the workspace?",
+      confirmText: "Unshare",
+      variant: "destructive",
+    });
+    if (confirmed) {
       unshareMaterialMutation.mutate({ shareId });
     }
   };
@@ -1182,33 +1194,7 @@ export default function MaterialsPage({ params }: PageProps) {
         </DialogContent>
       </Dialog>
 
-      {/* 3. Delete Folder Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent className="max-w-md border-border bg-card">
-          <DialogHeader>
-            <DialogTitle className="text-destructive flex items-center gap-2">
-              <AlertCircle className="size-5" />
-              Delete Folder?
-            </DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete <span className="font-semibold text-foreground">"{targetFolder?.name}"</span>?
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-2 text-xs leading-relaxed text-muted-foreground">
-            Any subfolders will also be deleted. All shared materials inside this folder structure will be preserved and moved to the workspace root.
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-            <Button 
-              variant="destructive"
-              onClick={() => targetFolder && deleteFolderMutation.mutate({ folderId: targetFolder.id })}
-              disabled={deleteFolderMutation.isPending}
-            >
-              {deleteFolderMutation.isPending ? <Loader2 className="animate-spin size-4" /> : "Yes, Delete Folder"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
 
       {/* 4. PREMIUM SHARE TO HIVE MODAL (Task 3.14 COMPLETE) */}
       <Dialog open={shareModalOpen} onOpenChange={setShareModalOpen}>

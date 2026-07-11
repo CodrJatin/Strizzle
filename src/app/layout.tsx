@@ -5,6 +5,7 @@ import "./globals.css";
 import { TRPCProvider } from "@/lib/trpc/provider";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Toaster } from "@/components/ui/sonner";
+import { ConfirmModal } from "@/components/ConfirmModal";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -66,6 +67,7 @@ export default async function RootLayout({
           <ThemeProvider initialTheme={themeCookie}>
             {children}
             <Toaster />
+            <ConfirmModal />
           </ThemeProvider>
         </TRPCProvider>
       </body>

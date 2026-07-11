@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
+import { useConfirmStore } from "@/store/confirmStore";
 
 interface PageProps {
   params: Promise<{ hiveId: string }>;
@@ -37,6 +38,7 @@ export default function HiveSettingsPage({ params }: PageProps) {
   const { hiveId } = React.use(params);
   const router = useRouter();
   const utils = api.useUtils();
+  const confirm = useConfirmStore((s) => s.confirm);
 
   const [activeTab, setActiveTab] = React.useState<TabType>("general");
 
@@ -580,7 +582,17 @@ export default function HiveSettingsPage({ params }: PageProps) {
 
                               {/* Remove participant button */}
                               <Button
-                                onClick={() => removeMemberMutation.mutate({ hiveId, userId: member.userId })}
+                                onClick={async () => {
+                                  const confirmed = await confirm({
+                                    title: "Remove Member",
+                                    description: `Are you sure you want to remove ${member.user.fullName} from the study group? They will lose all access to materials and tasks.`,
+                                    confirmText: "Remove",
+                                    variant: "destructive",
+                                  });
+                                  if (confirmed) {
+                                    removeMemberMutation.mutate({ hiveId, userId: member.userId });
+                                  }
+                                }}
                                 disabled={removeMemberMutation.isPending}
                                 variant="ghost"
                                 size="icon"
@@ -727,7 +739,17 @@ export default function HiveSettingsPage({ params }: PageProps) {
                             {/* Revoke action */}
                             {!isInvalid && (
                               <Button
-                                onClick={() => revokeInviteMutation.mutate({ inviteId: invite.id })}
+                                onClick={async () => {
+                                  const confirmed = await confirm({
+                                    title: "Revoke Invite Link",
+                                    description: "Are you sure you want to revoke this invite link? Anyone who tries to use it will no longer be able to join.",
+                                    confirmText: "Revoke",
+                                    variant: "destructive",
+                                  });
+                                  if (confirmed) {
+                                    revokeInviteMutation.mutate({ inviteId: invite.id });
+                                  }
+                                }}
                                 disabled={revokeInviteMutation.isPending}
                                 variant="outline"
                                 size="sm"

@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { api } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
+import { useConfirmStore } from "@/store/confirmStore";
 
 interface PageProps {
   params: Promise<{ hiveId: string }>;
@@ -120,6 +121,7 @@ export default function OverviewPage({ params }: PageProps) {
   const { hiveId } = React.use(params);
   const router = useRouter();
   const utils = api.useUtils();
+  const confirm = useConfirmStore((s) => s.confirm);
 
   // Queries
   const { data: hive, isLoading: isLoadingHive } = api.hive.getHive.useQuery(
@@ -462,7 +464,17 @@ export default function OverviewPage({ params }: PageProps) {
                     key={item.id}
                     item={item}
                     isAuthorOrAdmin={isAuthorOrAdmin}
-                    onDelete={() => deleteAnnouncementMutation.mutate({ announcementId: item.id })}
+                    onDelete={async () => {
+                      const confirmed = await confirm({
+                        title: "Delete Announcement",
+                        description: "Are you sure you want to delete this announcement? This action cannot be undone.",
+                        confirmText: "Delete",
+                        variant: "destructive",
+                      });
+                      if (confirmed) {
+                        deleteAnnouncementMutation.mutate({ announcementId: item.id });
+                      }
+                    }}
                     formatTime={formatTime}
                   />
                 );

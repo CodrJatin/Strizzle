@@ -8,6 +8,7 @@ import {
 import { toast } from "sonner";
 import { api } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
+import { useConfirmStore } from "@/store/confirmStore";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,7 @@ export function TaskDetailModal({
   onTaskDeleted,
 }: TaskDetailModalProps) {
   const utils = api.useUtils();
+  const confirm = useConfirmStore((s) => s.confirm);
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [isEditingDesc, setIsEditingDesc] = React.useState(false);
 
@@ -232,9 +234,15 @@ export function TaskDetailModal({
     });
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!taskId) return;
-    if (confirm("Are you sure you want to delete this task?")) {
+    const confirmed = await confirm({
+      title: "Delete Task",
+      description: "Are you sure you want to delete this task?",
+      confirmText: "Delete",
+      variant: "destructive",
+    });
+    if (confirmed) {
       deleteTaskMutation.mutate({ id: taskId });
     }
   };

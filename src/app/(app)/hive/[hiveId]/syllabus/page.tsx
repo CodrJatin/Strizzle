@@ -21,6 +21,7 @@ import { motion, AnimatePresence } from "framer-motion";
 
 import { api } from "@/lib/trpc/client";
 import { useHiveStore } from "@/store/hiveStore";
+import { useConfirmStore } from "@/store/confirmStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -371,6 +372,7 @@ function SortableUnit({
 export default function HiveSyllabusPage({ params }: PageProps) {
   const { hiveId } = React.use(params);
   const utils = api.useUtils();
+  const confirm = useConfirmStore((s) => s.confirm);
 
   // Retrieve user role from workspace Zustand store
   const userRole = useHiveStore((s) => s.userRole);
@@ -724,8 +726,14 @@ export default function HiveSyllabusPage({ params }: PageProps) {
     updateUnitMutation.mutate({ id, title: title.trim() });
   };
 
-  const handleDeleteUnit = (id: string) => {
-    if (confirm("Are you sure you want to delete this syllabus unit? This will delete all topics inside it.")) {
+  const handleDeleteUnit = async (id: string) => {
+    const confirmed = await confirm({
+      title: "Delete Syllabus Unit",
+      description: "Are you sure you want to delete this syllabus unit? This will delete all topics inside it.",
+      confirmText: "Delete",
+      variant: "destructive",
+    });
+    if (confirmed) {
       deleteUnitMutation.mutate({ id });
     }
   };
@@ -746,8 +754,14 @@ export default function HiveSyllabusPage({ params }: PageProps) {
     updateTopicMutation.mutate({ id, title: title.trim() });
   };
 
-  const handleDeleteTopic = (id: string) => {
-    if (confirm("Are you sure you want to delete this syllabus topic?")) {
+  const handleDeleteTopic = async (id: string) => {
+    const confirmed = await confirm({
+      title: "Delete Syllabus Topic",
+      description: "Are you sure you want to delete this syllabus topic?",
+      confirmText: "Delete",
+      variant: "destructive",
+    });
+    if (confirmed) {
       deleteTopicMutation.mutate({ id });
     }
   };
