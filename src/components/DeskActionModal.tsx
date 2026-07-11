@@ -180,60 +180,71 @@ export function DeskActionModal({ item, isOpen, onClose }: DeskActionModalProps)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
+    onClose();
 
-    try {
-      // 1. Execute Core Conversion Action
-      if (selectedAction === "library" || selectedAction === "note") {
-        // Save to Library
-        await addToLibrary.mutateAsync({ materialId: material.id });
-        
-        // Update tags if modified
-        const tags = parseTags(tagsInput);
-        const tagsChanged = JSON.stringify(tags) !== JSON.stringify(material.tags);
-        if (tagsChanged) {
-          await updateMaterial.mutateAsync({
-            id: material.id,
-            tags,
-          });
-        }
-      } else if (selectedAction === "task") {
-        // Convert to Task
-        await createTask.mutateAsync({
-          title: taskTitle,
-          description: taskDesc || null,
-          priority: taskPriority,
-          dueAt: taskDueDate ? new Date(taskDueDate).toISOString() : null,
-          source: "shelf_converted",
-          sourceRefId: material.id,
-        });
-      } else if (selectedAction === "hive") {
-        // Share to Hive (Mocked for Phase 2)
-        toast.info(`Mock Shared to study group (Folder: ${selectedFolder})`);
-      } else if (selectedAction === "announcement") {
-        // Post Announcement (Mocked for Phase 2)
-        toast.info(`Mock Announcement posted: "${announcementTitle}"`);
-      }
-
-      // 2. Execute Post-Action Lifecycle Choice
-      if (lifecycle === "remove") {
-        await deleteShelfItem.mutateAsync({ id: item.id });
-      } else if (lifecycle === "library") {
-        await moveToLibrary.mutateAsync({ shelfItemId: item.id });
-      }
-
-      // 3. Invalidate caches and close
-      utils.shelf.getShelfItems.invalidate();
-      utils.library.getLibraryMaterials.invalidate();
-      
-      toast.success("Resource organized successfully!");
-      onClose();
-    } catch (err: any) {
-      console.error(err);
-      toast.error(err.message || "Failed to complete organization.");
-    } finally {
-      setSubmitting(false);
+    // Optimistically update the desk shelf cache immediately
+    const previousShelfItems = utils.shelf.getShelfItems.getData();
+    if (lifecycle === "remove" || lifecycle === "library") {
+      utils.shelf.getShelfItems.setData(undefined, (old) => {
+        if (!old) return old;
+        return old.filter(i => i.id !== item.id);
+      });
     }
+
+    // Process the operations in the background
+    (async () => {
+      try {
+        // 1. Execute Core Conversion Action
+        if (selectedAction === "library" || selectedAction === "note") {
+          // Save to Library
+          await addToLibrary.mutateAsync({ materialId: material.id });
+          
+          // Update tags if modified
+          const tags = parseTags(tagsInput);
+          const tagsChanged = JSON.stringify(tags) !== JSON.stringify(material.tags);
+          if (tagsChanged) {
+            await updateMaterial.mutateAsync({
+              id: material.id,
+              tags,
+            });
+          }
+        } else if (selectedAction === "task") {
+          // Convert to Task
+          await createTask.mutateAsync({
+            title: taskTitle,
+            description: taskDesc || null,
+            priority: taskPriority,
+            dueAt: taskDueDate ? new Date(taskDueDate).toISOString() : null,
+            source: "shelf_converted",
+            sourceRefId: material.id,
+          });
+        } else if (selectedAction === "hive") {
+          // Share to Hive (Mocked for Phase 2)
+          toast.success(`Mock Shared to study group (Folder: ${selectedFolder})`);
+        } else if (selectedAction === "announcement") {
+          // Post Announcement (Mocked for Phase 2)
+          toast.success(`Mock Announcement posted: "${announcementTitle}"`);
+        }
+
+        // 2. Execute Post-Action Lifecycle Choice
+        if (lifecycle === "remove") {
+          await deleteShelfItem.mutateAsync({ id: item.id });
+        } else if (lifecycle === "library") {
+          await moveToLibrary.mutateAsync({ shelfItemId: item.id });
+        }
+
+        // 3. Invalidate caches
+        utils.shelf.getShelfItems.invalidate();
+        utils.library.getLibraryMaterials.invalidate();
+        toast.success("Resource organized successfully!");
+      } catch (err: any) {
+        console.error(err);
+        if (previousShelfItems) {
+          utils.shelf.getShelfItems.setData(undefined, previousShelfItems);
+        }
+        toast.error(err.message || "Failed to complete organization.");
+      }
+    })();
   };
 
   const availableActions = getAvailableActions();

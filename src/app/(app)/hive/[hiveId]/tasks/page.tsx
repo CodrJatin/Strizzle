@@ -71,6 +71,12 @@ export default function HiveTasksPage({ params }: PageProps) {
   // Mutations
   const createTaskMutation = api.task.createTask.useMutation({
     onMutate: async (newTask) => {
+      setCreateOpen(false);
+      setNewTitle("");
+      setNewDescription("");
+      setNewPriority("medium");
+      setNewAssigneeId(null);
+      setNewDueAt("");
       await utils.task.getTasks.cancel({ hiveId });
       const previous = utils.task.getTasks.getData({ hiveId });
       

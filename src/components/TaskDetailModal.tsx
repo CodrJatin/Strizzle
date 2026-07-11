@@ -119,6 +119,7 @@ export function TaskDetailModal({
 
   const deleteTaskMutation = api.task.deleteTask.useMutation({
     onMutate: async (variables) => {
+      onClose();
       // Cancel queries
       if (task?.hiveId) {
         await utils.task.getTasks.cancel({ hiveId: task.hiveId });

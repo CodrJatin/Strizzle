@@ -52,6 +52,7 @@ export function CreateHiveModal({ isOpen, onClose }: CreateHiveModalProps) {
 
   const createHiveMutation = api.hive.createHive.useMutation({
     onMutate: async (newHive) => {
+      handleClose();
       await utils.hive.getUserHives.cancel();
       const previousHives = utils.hive.getUserHives.getData();
 

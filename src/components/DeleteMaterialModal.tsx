@@ -42,6 +42,7 @@ export function DeleteMaterialModal({ item, isOpen, onClose, queryFilter }: Dele
   // Delete Mutation with Optimistic Updates
   const deleteMutation = api.material.deleteMaterial.useMutation({
     onMutate: async (variables) => {
+      onClose();
       // Cancel inflight queries
       await utils.library.getLibraryMaterials.cancel(qFilter);
 

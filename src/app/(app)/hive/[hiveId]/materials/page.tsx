@@ -111,6 +111,9 @@ export default function MaterialsPage({ params }: PageProps) {
   // Mutations
   const createFolderMutation = api.folder.createFolder.useMutation({
     onMutate: async (newFolder) => {
+      setCreateFolderDialogOpen(false);
+      setNewFolderName("");
+      setNewFolderParentId(null);
       await utils.folder.getHiveFolders.cancel({ hiveId });
       const previousFolders = utils.folder.getHiveFolders.getData({ hiveId });
       utils.folder.getHiveFolders.setData({ hiveId }, (old: any) => {
@@ -150,6 +153,9 @@ export default function MaterialsPage({ params }: PageProps) {
 
   const renameFolderMutation = api.folder.renameFolder.useMutation({
     onMutate: async (variables) => {
+      setRenameDialogOpen(false);
+      setEditFolderName("");
+      setTargetFolder(null);
       await utils.folder.getHiveFolders.cancel({ hiveId });
       const previousFolders = utils.folder.getHiveFolders.getData({ hiveId });
       utils.folder.getHiveFolders.setData({ hiveId }, (old: any) => {
@@ -180,6 +186,11 @@ export default function MaterialsPage({ params }: PageProps) {
 
   const deleteFolderMutation = api.folder.deleteFolder.useMutation({
     onMutate: async (variables) => {
+      setDeleteDialogOpen(false);
+      setTargetFolder(null);
+      if (selectedFolderId === variables.folderId) {
+        setSelectedFolderId(null);
+      }
       await utils.folder.getHiveFolders.cancel({ hiveId });
       const previousFolders = utils.folder.getHiveFolders.getData({ hiveId });
       utils.folder.getHiveFolders.setData({ hiveId }, (old: any) => {

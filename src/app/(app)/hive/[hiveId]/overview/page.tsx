@@ -134,6 +134,9 @@ export default function OverviewPage({ params }: PageProps) {
   // Mutations
   const createAnnouncementMutation = api.announcement.createAnnouncement.useMutation({
     onMutate: async (newAnn) => {
+      setPostDialogOpen(false);
+      setNewTitle("");
+      setNewBody("");
       await utils.hive.getHiveOverview.cancel({ hiveId });
       const previous = utils.hive.getHiveOverview.getData({ hiveId });
       const me = utils.user.getMe.getData();
