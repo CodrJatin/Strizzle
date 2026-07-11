@@ -101,6 +101,7 @@ export default function DashboardPage() {
   const starredItems = starredData?.items || [];
 
   const [selectedTaskId, setSelectedTaskId] = React.useState<string | null>(null);
+  const [toggledTaskIds, setToggledTaskIds] = React.useState<Record<string, boolean>>({});
 
   const { data: myTasks = [], isLoading: isLoadingTasks } = api.task.getMyTasks.useQuery(undefined, {
     staleTime: 120000,
@@ -384,10 +385,13 @@ export default function DashboardPage() {
                           className="flex items-start gap-3 p-3 border border-border/60 rounded-xl bg-surface hover:bg-muted/15 transition-all group/task"
                         >
                           <Checkbox
-                            checked={task.status === "done"}
+                            checked={task.status === "done" || !!toggledTaskIds[task.id]}
                             onCheckedChange={(checked) => {
                               if (checked) {
-                                toggleTaskStatus.mutate({ id: task.id, status: "done" });
+                                setToggledTaskIds((prev) => ({ ...prev, [task.id]: true }));
+                                setTimeout(() => {
+                                  toggleTaskStatus.mutate({ id: task.id, status: "done" });
+                                }, 600);
                               }
                             }}
                             className="mt-0.5 rounded-[4px] cursor-pointer"
@@ -396,7 +400,10 @@ export default function DashboardPage() {
                             className="min-w-0 flex-1 cursor-pointer"
                             onClick={() => setSelectedTaskId(task.id)}
                           >
-                            <p className="text-[11px] font-bold text-foreground leading-snug truncate group-hover/task:text-primary transition-all">
+                            <p className={cn(
+                              "text-[11px] font-bold text-foreground leading-snug truncate group-hover/task:text-primary transition-all",
+                              (task.status === "done" || toggledTaskIds[task.id]) && "line-through text-muted-foreground/60 font-semibold"
+                            )}>
                               {task.title}
                             </p>
                             <div className="flex flex-wrap items-center gap-1.5 mt-1.5">

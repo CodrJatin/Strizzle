@@ -17,9 +17,103 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { api } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
 
 interface PageProps {
   params: Promise<{ hiveId: string }>;
+}
+
+interface AnnouncementCardProps {
+  item: any;
+  isAuthorOrAdmin: boolean;
+  onDelete: () => void;
+  formatTime: (t: string | Date) => string;
+}
+
+function AnnouncementCard({ item, isAuthorOrAdmin, onDelete, formatTime }: AnnouncementCardProps) {
+  const [isExpanded, setIsExpanded] = React.useState(false);
+  const [hasOverflow, setHasOverflow] = React.useState(false);
+  const [collapsedHeight, setCollapsedHeight] = React.useState<number | "auto">("auto");
+  const textRef = React.useRef<HTMLParagraphElement>(null);
+
+  React.useEffect(() => {
+    const el = textRef.current;
+    if (el) {
+      const isOverflowing = el.scrollHeight > el.clientHeight;
+      setHasOverflow(isOverflowing);
+      if (isOverflowing) {
+        setCollapsedHeight(el.clientHeight);
+      }
+    }
+  }, [item.body]);
+
+  const authorName = item.author?.fullName || "User";
+
+  const getInitials = (name: string) => {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  };
+
+  return (
+    <Card className="border-border shadow-sm bg-card overflow-hidden hover:shadow-md transition-all duration-200">
+      <CardHeader className="flex flex-row items-start justify-between gap-4 p-5 pb-3">
+        <div className="flex items-center gap-3">
+          <Avatar className="size-10 border border-border shadow-sm">
+            <AvatarImage src={item.author?.avatarUrl || undefined} />
+            <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
+              {getInitials(authorName)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex flex-col min-w-0">
+            <span className="text-sm font-bold text-foreground truncate">{authorName}</span>
+            <span className="text-xs text-muted-foreground">{formatTime(item.createdAt)}</span>
+          </div>
+        </div>
+
+        {/* Delete Trigger */}
+        {isAuthorOrAdmin && (
+          <Button 
+            onClick={onDelete}
+            variant="ghost" 
+            size="icon" 
+            className="size-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+          >
+            <Trash2 className="size-4" />
+            <span className="sr-only">Delete</span>
+          </Button>
+        )}
+      </CardHeader>
+      <CardContent className="p-5 pt-0 space-y-3">
+        <h3 className="text-base font-bold text-foreground leading-snug">
+          {item.title}
+        </h3>
+        <motion.div
+          animate={{ height: isExpanded ? "auto" : collapsedHeight }}
+          transition={{ duration: 0.2, ease: "easeInOut" }}
+          className="overflow-hidden"
+        >
+          <p 
+            ref={textRef}
+            className={cn(
+              "text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap",
+              !isExpanded && "line-clamp-3"
+            )}
+          >
+            {item.body}
+          </p>
+        </motion.div>
+        {hasOverflow && (
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="text-xs font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer focus:outline-none"
+          >
+            {isExpanded ? "Show less" : "Read more ->"}
+          </button>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function OverviewPage({ params }: PageProps) {
@@ -50,7 +144,7 @@ export default function OverviewPage({ params }: PageProps) {
           id: "temp-ann-" + Math.random().toString(),
           hiveId,
           title: newAnn.title,
-          body: newAnn.body,
+          body: newAnn.body ?? "",
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           authorId: me?.id || "temp-author",
@@ -118,7 +212,6 @@ export default function OverviewPage({ params }: PageProps) {
   const [newTitle, setNewTitle] = React.useState("");
   const [newBody, setNewBody] = React.useState("");
 
-  const [expandedAnnouncements, setExpandedAnnouncements] = React.useState<Record<string, boolean>>({});
 
   // Helper: Get user's initials
   const getInitials = (name: string) => {
@@ -339,7 +432,7 @@ export default function OverviewPage({ params }: PageProps) {
                     <Button variant="ghost" onClick={() => setPostDialogOpen(false)}>Cancel</Button>
                     <Button 
                       onClick={() => createAnnouncementMutation.mutate({ hiveId, title: newTitle, body: newBody })}
-                      disabled={createAnnouncementMutation.isPending || !newTitle.trim() || !newBody.trim()}
+                      disabled={createAnnouncementMutation.isPending || !newTitle.trim()}
                     >
                       {createAnnouncementMutation.isPending ? <Loader2 className="animate-spin size-4" /> : "Publish Announcement"}
                     </Button>
@@ -359,59 +452,16 @@ export default function OverviewPage({ params }: PageProps) {
           ) : (
             <div className="space-y-4">
               {overview.announcements.map((item) => {
-                const isExpanded = !!expandedAnnouncements[item.id];
-                const authorName = item.author?.fullName || "User";
-                const isAuthorOrAdmin = hive.role === "owner" || hive.role === "admin" || item.authorId === hive.ownerId; // simplify author delete check
+                const isAuthorOrAdmin = hive.role === "owner" || hive.role === "admin" || item.authorId === hive.ownerId;
 
                 return (
-                  <Card key={item.id} className="border-border shadow-sm bg-card overflow-hidden hover:shadow-md transition-all duration-200">
-                    <CardHeader className="flex flex-row items-start justify-between gap-4 p-5 pb-3">
-                      <div className="flex items-center gap-3">
-                        <Avatar className="size-10 border border-border shadow-sm">
-                          <AvatarImage src={item.author?.avatarUrl || undefined} />
-                          <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
-                            {getInitials(authorName)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex flex-col min-w-0">
-                          <span className="text-sm font-bold text-foreground truncate">{authorName}</span>
-                          <span className="text-xs text-muted-foreground">{formatTime(item.createdAt)}</span>
-                        </div>
-                      </div>
-
-                      {/* Delete Trigger */}
-                      {isAuthorOrAdmin && (
-                        <Button 
-                          onClick={() => deleteAnnouncementMutation.mutate({ announcementId: item.id })}
-                          variant="ghost" 
-                          size="icon" 
-                          className="size-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
-                        >
-                          <Trash2 className="size-4" />
-                          <span className="sr-only">Delete</span>
-                        </Button>
-                      )}
-                    </CardHeader>
-                    <CardContent className="p-5 pt-0 space-y-3">
-                      <h3 className="text-base font-bold text-foreground leading-snug">
-                        {item.title}
-                      </h3>
-                      <p 
-                        className={cn(
-                          "text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap",
-                          !isExpanded && "line-clamp-3"
-                        )}
-                      >
-                        {item.body}
-                      </p>
-                      <button
-                        onClick={() => setExpandedAnnouncements((prev) => ({ ...prev, [item.id]: !isExpanded }))}
-                        className="text-xs font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer focus:outline-none"
-                      >
-                        {isExpanded ? "Show less" : "Read more ->"}
-                      </button>
-                    </CardContent>
-                  </Card>
+                  <AnnouncementCard
+                    key={item.id}
+                    item={item}
+                    isAuthorOrAdmin={isAuthorOrAdmin}
+                    onDelete={() => deleteAnnouncementMutation.mutate({ announcementId: item.id })}
+                    formatTime={formatTime}
+                  />
                 );
               })}
             </div>

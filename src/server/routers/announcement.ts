@@ -9,7 +9,7 @@ import { sendPushNotification } from '../lib/sendPushNotification';
 export const createAnnouncementInputSchema = z.object({
   hiveId: z.string().uuid(),
   title: z.string().min(1, 'Title is required').max(100, 'Title is too long'),
-  body: z.string().min(1, 'Body is required'),
+  body: z.string().optional().default(''),
 });
 
 export const announcementRouter = createTRPCRouter({

@@ -6,7 +6,7 @@ import {
   Settings, Users, Share2, ToggleLeft, ToggleRight, Trash2, 
   Loader2, AlertTriangle, ShieldCheck, Check, Search, Calendar,
   ArrowRight, ShieldAlert, Sparkles, FolderOpen, MoreVertical, X,
-  Crown
+  Crown, Copy
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -204,6 +204,7 @@ export default function HiveSettingsPage({ params }: PageProps) {
   // Deletion confirm state
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
   const [deleteConfirmName, setDeleteConfirmName] = React.useState("");
+  const [updatingFeedKey, setUpdatingFeedKey] = React.useState<string | null>(null);
 
   // Filtered members list
   const filteredMembers = React.useMemo(() => {
@@ -301,6 +302,7 @@ export default function HiveSettingsPage({ params }: PageProps) {
   };
 
   const handleToggleFeedSetting = (key: string, enabled: boolean) => {
+    setUpdatingFeedKey(key);
     const currentSettings = hive.feedSettings as Record<string, boolean>;
     const newSettings = {
       ...currentSettings,
@@ -309,6 +311,10 @@ export default function HiveSettingsPage({ params }: PageProps) {
     updateHiveMutation.mutate({
       hiveId,
       feedSettings: newSettings,
+    }, {
+      onSettled: () => {
+        setUpdatingFeedKey(null);
+      }
     });
   };
 
@@ -475,9 +481,11 @@ export default function HiveSettingsPage({ params }: PageProps) {
                 </div>
 
                 <div className="flex items-center justify-end gap-3 pt-4 border-t border-border/30">
-                  <Button variant="ghost" onClick={handleCancelGeneral} className="rounded-xl text-xs font-semibold px-4 h-9">
-                    Cancel
-                  </Button>
+                  {generalHasChanges && (
+                    <Button variant="ghost" onClick={handleCancelGeneral} className="rounded-xl text-xs font-semibold px-4 h-9">
+                      Cancel
+                    </Button>
+                  )}
                   <Button 
                     onClick={handleSaveGeneral} 
                     disabled={updateHiveMutation.isPending || !generalHasChanges} 
@@ -605,11 +613,11 @@ export default function HiveSettingsPage({ params }: PageProps) {
                   <p className="text-xs text-muted-foreground mt-0.5">Onboard new collaborators to this hive.</p>
                 </div>
 
-                <CardContent className="p-6 space-y-5">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <CardContent className="p-6">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-4">
                     {/* Role Choice */}
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-muted-foreground">Assigned Role</label>
+                    <div className="flex-1 space-y-1.5 min-w-[120px]">
+                      <label className="text-xs font-semibold text-muted-foreground">Role</label>
                       <Select value={inviteRole} onValueChange={(val) => setInviteRole(val as any)}>
                         <SelectTrigger className="h-9.5 text-xs rounded-xl bg-card border-border">
                           <SelectValue />
@@ -623,7 +631,7 @@ export default function HiveSettingsPage({ params }: PageProps) {
                     </div>
 
                     {/* Expiry Choice */}
-                    <div className="space-y-1.5">
+                    <div className="flex-1 space-y-1.5 min-w-[120px]">
                       <label className="text-xs font-semibold text-muted-foreground">Expires After</label>
                       <Select value={inviteExpiry} onValueChange={setInviteExpiry}>
                         <SelectTrigger className="h-9.5 text-xs rounded-xl bg-card border-border">
@@ -638,7 +646,7 @@ export default function HiveSettingsPage({ params }: PageProps) {
                     </div>
 
                     {/* Max Uses Choice */}
-                    <div className="space-y-1.5">
+                    <div className="flex-1 space-y-1.5 min-w-[120px]">
                       <label className="text-xs font-semibold text-muted-foreground">Max Uses</label>
                       <Select value={inviteMaxUses} onValueChange={setInviteMaxUses}>
                         <SelectTrigger className="h-9.5 text-xs rounded-xl bg-card border-border">
@@ -652,13 +660,12 @@ export default function HiveSettingsPage({ params }: PageProps) {
                         </SelectContent>
                       </Select>
                     </div>
-                  </div>
 
-                  <div className="flex justify-end pt-2">
+                    {/* Generate Button */}
                     <Button 
                       onClick={handleGenerateLink} 
                       disabled={generateInviteMutation.isPending}
-                      className="rounded-xl text-xs font-semibold h-9.5 px-5 bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
+                      className="rounded-xl text-xs font-semibold h-9.5 px-5 bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm shrink-0 sm:ml-auto"
                     >
                       {generateInviteMutation.isPending ? <Loader2 className="animate-spin size-3.5" /> : "Generate Link"}
                     </Button>
@@ -707,7 +714,7 @@ export default function HiveSettingsPage({ params }: PageProps) {
                                   size="icon"
                                   className="size-7 rounded hover:bg-muted text-muted-foreground shrink-0 cursor-pointer"
                                 >
-                                  <ArrowRight className="size-3.5 rotate-45" style={{ transform: "rotate(-45deg)" }} />
+                                  <Copy className="size-3.5" />
                                 </Button>
                               </div>
                               <p className="text-[10px] text-muted-foreground font-medium">
@@ -758,11 +765,16 @@ export default function HiveSettingsPage({ params }: PageProps) {
                       <h4 className="text-xs font-bold text-foreground">Member Joins</h4>
                       <p className="text-[10px] text-muted-foreground leading-normal">Log announcements when new classmates accept invites.</p>
                     </div>
-                    <Switch
-                      checked={!!(hive.feedSettings as any)?.show_member_joins}
-                      onCheckedChange={(checked: boolean) => handleToggleFeedSetting("show_member_joins", checked)}
-                      disabled={updateHiveMutation.isPending}
-                    />
+                    <div className="flex items-center gap-2.5 shrink-0">
+                      {updatingFeedKey === "show_member_joins" && (
+                        <Loader2 className="animate-spin size-3.5 text-primary" />
+                      )}
+                      <Switch
+                        checked={!!(hive.feedSettings as any)?.show_member_joins}
+                        onCheckedChange={(checked: boolean) => handleToggleFeedSetting("show_member_joins", checked)}
+                        disabled={updateHiveMutation.isPending}
+                      />
+                    </div>
                   </div>
 
                   {/* Toggle: Material Uploads */}
@@ -771,11 +783,16 @@ export default function HiveSettingsPage({ params }: PageProps) {
                       <h4 className="text-xs font-bold text-foreground">Material Uploads</h4>
                       <p className="text-[10px] text-muted-foreground leading-normal">Register updates when files or URLs are shared to folders.</p>
                     </div>
-                    <Switch
-                      checked={!!(hive.feedSettings as any)?.show_material_uploads}
-                      onCheckedChange={(checked: boolean) => handleToggleFeedSetting("show_material_uploads", checked)}
-                      disabled={updateHiveMutation.isPending}
-                    />
+                    <div className="flex items-center gap-2.5 shrink-0">
+                      {updatingFeedKey === "show_material_uploads" && (
+                        <Loader2 className="animate-spin size-3.5 text-primary" />
+                      )}
+                      <Switch
+                        checked={!!(hive.feedSettings as any)?.show_material_uploads}
+                        onCheckedChange={(checked: boolean) => handleToggleFeedSetting("show_material_uploads", checked)}
+                        disabled={updateHiveMutation.isPending}
+                      />
+                    </div>
                   </div>
 
                   {/* Toggle: Announcement Posts */}
@@ -784,11 +801,16 @@ export default function HiveSettingsPage({ params }: PageProps) {
                       <h4 className="text-xs font-bold text-foreground">Announcements</h4>
                       <p className="text-[10px] text-muted-foreground leading-normal">Register feeds when admins or owners publish pinned updates.</p>
                     </div>
-                    <Switch
-                      checked={!!(hive.feedSettings as any)?.show_announcement_posts}
-                      onCheckedChange={(checked: boolean) => handleToggleFeedSetting("show_announcement_posts", checked)}
-                      disabled={updateHiveMutation.isPending}
-                    />
+                    <div className="flex items-center gap-2.5 shrink-0">
+                      {updatingFeedKey === "show_announcement_posts" && (
+                        <Loader2 className="animate-spin size-3.5 text-primary" />
+                      )}
+                      <Switch
+                        checked={!!(hive.feedSettings as any)?.show_announcement_posts}
+                        onCheckedChange={(checked: boolean) => handleToggleFeedSetting("show_announcement_posts", checked)}
+                        disabled={updateHiveMutation.isPending}
+                      />
+                    </div>
                   </div>
 
                   {/* Toggle: Task Deadlines */}
@@ -797,11 +819,16 @@ export default function HiveSettingsPage({ params }: PageProps) {
                       <h4 className="text-xs font-bold text-foreground">Tasks & Deadlines</h4>
                       <p className="text-[10px] text-muted-foreground leading-normal">Post activity nodes when calendar tasks are generated.</p>
                     </div>
-                    <Switch
-                      checked={!!(hive.feedSettings as any)?.show_task_deadlines}
-                      onCheckedChange={(checked: boolean) => handleToggleFeedSetting("show_task_deadlines", checked)}
-                      disabled={updateHiveMutation.isPending}
-                    />
+                    <div className="flex items-center gap-2.5 shrink-0">
+                      {updatingFeedKey === "show_task_deadlines" && (
+                        <Loader2 className="animate-spin size-3.5 text-primary" />
+                      )}
+                      <Switch
+                        checked={!!(hive.feedSettings as any)?.show_task_deadlines}
+                        onCheckedChange={(checked: boolean) => handleToggleFeedSetting("show_task_deadlines", checked)}
+                        disabled={updateHiveMutation.isPending}
+                      />
+                    </div>
                   </div>
                 </div>
               </CardContent>

@@ -94,6 +94,8 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
     { enabled: context.type === "hive" && !!context.id, staleTime: 300000 }
   );
 
+  const { data: userHives = [] } = api.hive.getUserHives.useQuery();
+
   // Define sidebar context configurations
   const contextConfigs: Record<string, SidebarContextConfig> = {
     workspace: {
@@ -105,8 +107,6 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
         { label: "Calendar", href: "/calendar", icon: Calendar },
         { label: "Deadlines", href: "/calendar/deadlines", icon: CheckSquare },
         { label: "My Workspace", href: "/desk", icon: Layers },
-        { label: "Course Notes", href: "/notes", icon: FileText },
-        { label: "Archive", href: "/archive", icon: Archive },
       ],
       actionLabel: "New Entry",
     },
@@ -177,7 +177,7 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
       icon: Rss,
       links: [
         { label: "Shared Feed", href: "/feed", icon: Rss },
-        { label: "Hives", href: "/hives", icon: Layers },
+        { label: "All Hives", href: "/hives", icon: Layers },
       ],
       actionLabel: "New Post",
     },
@@ -345,6 +345,32 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
             </Link>
           );
         })}
+        {context.type === "community" && userHives.length > 0 && (
+          <div className="pt-4 mt-4 border-t border-border/40 space-y-1">
+            <span className="px-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-2">My Hives</span>
+            {userHives.map((hive: any) => {
+              const hiveUrl = `/hive/${hive.id}/overview`;
+              const isActive = pathname.startsWith(`/hive/${hive.id}`);
+              return (
+                <Link
+                  key={hive.id}
+                  href={hiveUrl}
+                  onClick={() => setMobileMenuOpen(false)}
+                  onMouseEnter={() => handleNavHover(hiveUrl)}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-all",
+                    isActive
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                  )}
+                >
+                  <Users className="size-3.5 shrink-0" />
+                  <span className="truncate">{hive.name}</span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </nav>
 
       {/* Action Button (Desktop Only Layout Slot - inside desktop sidebar) */}
