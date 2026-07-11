@@ -9,6 +9,8 @@ import { toast } from "sonner";
 import { api } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import { useConfirmStore } from "@/store/confirmStore";
+import { getQueryKey } from "@trpc/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -44,6 +46,8 @@ export function TaskDetailModal({
 }: TaskDetailModalProps) {
   const utils = api.useUtils();
   const confirm = useConfirmStore((s) => s.confirm);
+  const queryClient = useQueryClient();
+  const calendarTasksQueryKey = getQueryKey(api.calendar.getCalendarTasks);
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [isEditingDesc, setIsEditingDesc] = React.useState(false);
 
@@ -67,6 +71,7 @@ export function TaskDetailModal({
       }
       await utils.task.getTask.cancel({ id: updated.id });
       await utils.task.getMyTasks.cancel();
+      queryClient.cancelQueries({ queryKey: calendarTasksQueryKey });
 
       // Snapshot for rollback
       const previousTask = utils.task.getTask.getData({ id: updated.id });
@@ -74,6 +79,9 @@ export function TaskDetailModal({
         ? utils.task.getTasks.getData({ hiveId: task.hiveId }) 
         : undefined;
       const previousMyTasks = utils.task.getMyTasks.getData();
+      const previousCalendarQueries = queryClient.getQueriesData({
+        queryKey: calendarTasksQueryKey,
+      });
 
       // Apply optimistic updates
       if (task?.hiveId) {
@@ -90,8 +98,15 @@ export function TaskDetailModal({
         if (!old) return old;
         return old.map((t) => (t.id === updated.id ? { ...t, ...updated } : t)) as any;
       });
+      queryClient.setQueriesData(
+        { queryKey: calendarTasksQueryKey },
+        (old: any) => {
+          if (!old) return old;
+          return old.map((t: any) => (t.id === updated.id ? { ...t, ...updated } : t));
+        }
+      );
 
-      return { previousTask, previousTasks, previousMyTasks };
+      return { previousTask, previousTasks, previousMyTasks, previousCalendarQueries };
     },
     onError: (_err, updated, ctx) => {
       // Rollback to snapshots
@@ -103,6 +118,11 @@ export function TaskDetailModal({
       }
       if (ctx?.previousMyTasks) {
         utils.task.getMyTasks.setData(undefined, ctx.previousMyTasks);
+      }
+      if (ctx?.previousCalendarQueries) {
+        ctx.previousCalendarQueries.forEach(([queryKey, queryData]) => {
+          queryClient.setQueryData(queryKey, queryData);
+        });
       }
       toast.error("Something went wrong. Failed to update task.");
     },
@@ -127,12 +147,16 @@ export function TaskDetailModal({
         await utils.task.getTasks.cancel({ hiveId: task.hiveId });
       }
       await utils.task.getMyTasks.cancel();
+      queryClient.cancelQueries({ queryKey: calendarTasksQueryKey });
 
       // Snapshot for rollback
       const previousTasks = task?.hiveId
         ? utils.task.getTasks.getData({ hiveId: task.hiveId })
         : undefined;
       const previousMyTasks = utils.task.getMyTasks.getData();
+      const previousCalendarQueries = queryClient.getQueriesData({
+        queryKey: calendarTasksQueryKey,
+      });
 
       // Apply optimistic update
       if (task?.hiveId) {
@@ -145,8 +169,15 @@ export function TaskDetailModal({
         if (!old) return old;
         return old.filter((t) => t.id !== variables.id);
       });
+      queryClient.setQueriesData(
+        { queryKey: calendarTasksQueryKey },
+        (old: any) => {
+          if (!old) return old;
+          return old.filter((t: any) => t.id !== variables.id);
+        }
+      );
 
-      return { previousTasks, previousMyTasks };
+      return { previousTasks, previousMyTasks, previousCalendarQueries };
     },
     onError: (_err, _variables, ctx) => {
       // Rollback
@@ -155,6 +186,11 @@ export function TaskDetailModal({
       }
       if (ctx?.previousMyTasks) {
         utils.task.getMyTasks.setData(undefined, ctx.previousMyTasks);
+      }
+      if (ctx?.previousCalendarQueries) {
+        ctx.previousCalendarQueries.forEach(([queryKey, queryData]) => {
+          queryClient.setQueryData(queryKey, queryData);
+        });
       }
       toast.error("Something went wrong. Failed to delete task.");
     },
@@ -265,7 +301,7 @@ export function TaskDetailModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[85vh] p-0 overflow-hidden flex flex-col rounded-xl">
+      <DialogContent className="max-w-3xl max-h-[85vh] p-0 overflow-hidden flex flex-col rounded-xl border border-border bg-card shadow-2xl">
         <DialogHeader className="p-6 pb-4 border-b border-border dark:border-zinc-900 bg-muted/20 shrink-0">
           <div className="flex items-center gap-2 text-muted-foreground text-xs font-bold uppercase tracking-wider">
             <CheckSquare className="size-4 text-primary" />
@@ -287,120 +323,111 @@ export function TaskDetailModal({
             <p className="text-sm font-semibold">Failed to load task details.</p>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-3">
-            {/* Left Content Area (Title, Desc, Materials) */}
-            <div className="md:col-span-2 p-6 space-y-6 border-b md:border-b-0 md:border-r border-border dark:border-zinc-900">
-              {/* Editable Title */}
-              <div className="space-y-1">
-                <Input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  onBlur={() => title.trim() !== task.title && handleSaveField({ title })}
-                  placeholder="Task title..."
-                  className="text-xl md:text-2xl font-bold border-none px-0 py-1 bg-transparent shadow-none focus-visible:ring-0 placeholder:text-muted-foreground/60 focus:outline-none"
-                />
-              </div>
-
-              {/* Editable Description */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Description</label>
-                {isEditingDesc ? (
-                  <div className="space-y-2">
-                    <Textarea
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      onBlur={() => {
-                        setIsEditingDesc(false);
-                        if (description !== task.description) {
-                          handleSaveField({ description });
-                        }
-                      }}
-                      placeholder="Add a detailed description... Markdown supported."
-                      className="min-h-36 resize-y focus-visible:ring-1 text-sm rounded-lg"
-                      autoFocus
-                    />
-                  </div>
-                ) : (
-                  <div 
-                    onClick={() => setIsEditingDesc(true)}
-                    className="min-h-32 p-3.5 rounded-xl bg-muted/30 border border-border/60 hover:border-border cursor-pointer text-sm transition-all"
-                  >
-                    {description.trim() ? (
-                      <p className="whitespace-pre-wrap text-foreground/90">{description}</p>
-                    ) : (
-                      <span className="text-muted-foreground/50 italic text-xs">Add a detailed description (Markdown supported)...</span>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Material References */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Material References</label>
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => setSearchOpen(true)}
-                    className="text-[10px] font-bold text-primary gap-1 cursor-pointer h-7 px-2 rounded-md hover:bg-primary/10"
-                  >
-                    <Plus className="size-3.5" />
-                    Attach
-                  </Button>
+          <>
+            <div className="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-3">
+              {/* Left Content Area (Title, Desc, Materials) */}
+              <div className="md:col-span-2 p-6 space-y-6 border-b md:border-b-0 md:border-r border-border dark:border-zinc-900">
+                {/* Editable Title */}
+                <div className="space-y-1">
+                  <Input
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="Task title..."
+                    className="text-xl md:text-2xl font-bold border-none px-0 py-1 bg-transparent shadow-none focus-visible:ring-0 placeholder:text-muted-foreground/60 focus:outline-none"
+                  />
                 </div>
 
+                {/* Editable Description */}
                 <div className="space-y-2">
-                  {task.materials.length > 0 ? (
-                    <div className="grid grid-cols-1 gap-2">
-                      {task.materials.map((m) => {
-                        const Icon = typeIcons[m.contentType as keyof typeof typeIcons] || FileText;
-                        return (
-                          <div 
-                            key={m.id}
-                            className="flex items-center justify-between p-2.5 rounded-xl border border-border/80 bg-surface dark:bg-zinc-900/30 hover:bg-muted/30 transition-all text-xs font-semibold"
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <div className="size-7 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                                <Icon className="size-4 text-zinc-500" />
-                              </div>
-                              <span className="truncate text-foreground/90">{m.title}</span>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleRemoveMaterial(m.id)}
-                              className="size-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer shrink-0"
-                            >
-                              <X className="size-3.5" />
-                            </Button>
-                          </div>
-                        );
-                      })}
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Description</label>
+                  {isEditingDesc ? (
+                    <div className="space-y-2">
+                      <Textarea
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        onBlur={() => setIsEditingDesc(false)}
+                        placeholder="Add a detailed description... Markdown supported."
+                        className="min-h-36 resize-y focus-visible:ring-1 text-sm rounded-lg"
+                        autoFocus
+                      />
                     </div>
                   ) : (
-                    <div className="p-4 rounded-xl border border-dashed border-border/80 flex flex-col items-center justify-center text-center gap-1.5 py-6">
-                      <Link2 className="size-5 text-muted-foreground/60" />
-                      <p className="text-[11px] font-bold text-muted-foreground">No references attached yet</p>
+                    <div 
+                      onClick={() => setIsEditingDesc(true)}
+                      className="min-h-32 p-3.5 rounded-xl bg-muted/30 border border-border/60 hover:border-border cursor-pointer text-sm transition-all text-left"
+                    >
+                      {description.trim() ? (
+                        <p className="whitespace-pre-wrap text-foreground/90">{description}</p>
+                      ) : (
+                        <span className="text-muted-foreground/50 italic text-xs">Add a detailed description (Markdown supported)...</span>
+                      )}
                     </div>
                   )}
                 </div>
-              </div>
-            </div>
 
-            {/* Right Sidebar (Controls) */}
-            <div className="p-6 bg-muted/10 flex flex-col justify-between gap-6">
-              <div className="space-y-5">
+                {/* Material References */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Material References</label>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => setSearchOpen(true)}
+                      className="text-[10px] font-bold text-primary gap-1 cursor-pointer h-7 px-2 rounded-md hover:bg-primary/10"
+                    >
+                      <Plus className="size-3.5" />
+                      Attach
+                    </Button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {task.materials.length > 0 ? (
+                      <div className="grid grid-cols-1 gap-2">
+                        {task.materials.map((m) => {
+                          const Icon = typeIcons[m.contentType as keyof typeof typeIcons] || FileText;
+                          return (
+                            <div 
+                              key={m.id}
+                              className="flex items-center justify-between p-2.5 rounded-xl border border-border/80 bg-surface dark:bg-zinc-900/30 hover:bg-muted/30 transition-all text-xs font-semibold"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="size-7 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                                  <Icon className="size-4 text-zinc-500" />
+                                </div>
+                                <span className="truncate text-foreground/90">{m.title}</span>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleRemoveMaterial(m.id)}
+                                className="size-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer shrink-0"
+                              >
+                                <X className="size-3.5" />
+                              </Button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="p-4 rounded-xl border border-dashed border-border/80 flex flex-col items-center justify-center text-center gap-1.5 py-6">
+                        <Link2 className="size-5 text-muted-foreground/60" />
+                        <p className="text-[11px] font-bold text-muted-foreground">No references attached yet</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Sidebar (Controls) */}
+              <div className="p-6 bg-muted/10 flex flex-col gap-6 border-l border-border/40 dark:border-zinc-900">
                 {/* Status Selection */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Status</label>
                   <Select 
                     value={status} 
-                    onValueChange={(val: any) => {
-                      setStatus(val);
-                      handleSaveField({ status: val });
-                    }}
+                    onValueChange={(val: any) => setStatus(val)}
                   >
-                    <SelectTrigger className="w-full h-9 justify-between">
+                    <SelectTrigger className="w-full h-9 justify-between bg-background">
                       <SelectValue placeholder="Select Status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -417,12 +444,9 @@ export function TaskDetailModal({
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Priority</label>
                   <Select 
                     value={priority} 
-                    onValueChange={(val: any) => {
-                      setPriority(val);
-                      handleSaveField({ priority: val });
-                    }}
+                    onValueChange={(val: any) => setPriority(val)}
                   >
-                    <SelectTrigger className="w-full h-9 justify-between">
+                    <SelectTrigger className="w-full h-9 justify-between bg-background">
                       <SelectValue placeholder="Select Priority" />
                     </SelectTrigger>
                     <SelectContent>
@@ -446,10 +470,9 @@ export function TaskDetailModal({
                       onValueChange={(val) => {
                         const newAssigneeId = val === "unassigned" ? null : val;
                         setAssigneeId(newAssigneeId);
-                        handleSaveField({ assigneeId: newAssigneeId });
                       }}
                     >
-                      <SelectTrigger className="w-full h-9 justify-between">
+                      <SelectTrigger className="w-full h-9 justify-between bg-background">
                         <SelectValue placeholder="Unassigned" />
                       </SelectTrigger>
                       <SelectContent>
@@ -466,42 +489,52 @@ export function TaskDetailModal({
 
                 {/* Due Date Selection */}
                 <div className="space-y-1.5">
-                  <div className="flex items-center gap-1">
-                    <Calendar className="size-3.5 text-muted-foreground" />
-                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Due Date</label>
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Due Date</label>
+                  <div className="relative flex items-center group cursor-pointer">
+                    <Calendar className="absolute left-3 size-3.5 text-muted-foreground group-hover:text-primary transition-colors pointer-events-none" />
+                    <input
+                      type="datetime-local"
+                      value={dueAt}
+                      onChange={(e) => setDueAt(e.target.value)}
+                      className="flex h-9 w-full rounded-lg border border-input bg-transparent pl-9 pr-3 py-1 text-sm shadow-xs transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30 cursor-pointer"
+                    />
                   </div>
-                  <input
-                    type="datetime-local"
-                    value={dueAt}
-                    onChange={(e) => setDueAt(e.target.value)}
-                    onBlur={() => {
-                      if (dueAt) {
-                        const nextDue = new Date(dueAt).toISOString();
-                        if (!task.dueAt || nextDue !== new Date(task.dueAt).toISOString()) {
-                          handleSaveField({ dueAt: nextDue });
-                        }
-                      } else if (task.dueAt) {
-                        handleSaveField({ dueAt: null });
-                      }
-                    }}
-                    className="flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30"
-                  />
                 </div>
               </div>
+            </div>
 
-              {/* Danger Zone / Delete */}
-              <div className="pt-4 border-t border-border dark:border-zinc-900">
+            {/* Modal Footer with Actions */}
+            <div className="p-4 px-6 border-t border-border dark:border-zinc-900 bg-muted/20 flex items-center justify-between shrink-0">
+              <div>
                 <Button
                   variant="outline"
                   onClick={handleDelete}
-                  className="w-full h-9 border-destructive/20 text-destructive hover:bg-destructive/10 hover:border-destructive/30 rounded-lg gap-2 cursor-pointer font-bold text-xs"
+                  className="border-destructive/20 text-destructive hover:bg-destructive/10 hover:border-destructive/30 rounded-lg gap-2 cursor-pointer font-bold text-xs h-9 px-3.5"
                 >
                   <Trash2 className="size-3.5" />
                   Delete Task
                 </Button>
               </div>
+              <div className="flex items-center gap-2.5">
+                <Button
+                  variant="ghost"
+                  onClick={onClose}
+                  className="rounded-lg px-4 h-9 text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    handleSave();
+                    onClose();
+                  }}
+                  className="bg-primary text-primary-foreground hover:bg-primary/95 rounded-lg px-4 h-9 text-xs font-semibold cursor-pointer shadow-xs"
+                >
+                  Update Task
+                </Button>
+              </div>
             </div>
-          </div>
+          </>
         )}
       </DialogContent>
 

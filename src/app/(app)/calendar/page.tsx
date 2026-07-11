@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { 
   Calendar as CalendarIcon, ChevronLeft, ChevronRight, CheckSquare, 
   Loader2, Plus, AlertCircle, Clock, Tag, User, Link2, ExternalLink
@@ -63,6 +63,13 @@ const priorityColors = {
   urgent: "bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400",
 };
 
+const formatLocalISO = (d: Date | null) => {
+  if (!d) return "";
+  const date = new Date(d);
+  const tzOffset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - tzOffset).toISOString().slice(0, 16);
+};
+
 interface CalendarPageProps {
   defaultView?: "month" | "week" | "day" | "deadlines";
 }
@@ -72,8 +79,13 @@ function CalendarPageContent({ defaultView }: CalendarPageProps) {
   const searchParams = useSearchParams();
   const utils = api.useUtils();
 
-  // Read view type from URL query or props
-  const viewParam = (searchParams.get("view") || defaultView || "month") as "month" | "week" | "day" | "deadlines";
+  const pathname = usePathname();
+  const viewParam = React.useMemo(() => {
+    if (pathname?.endsWith("/week")) return "week";
+    if (pathname?.endsWith("/day")) return "day";
+    if (pathname?.endsWith("/deadlines")) return "month";
+    return (searchParams.get("view") || defaultView || "month") as "month" | "week" | "day" | "deadlines";
+  }, [pathname, searchParams, defaultView]);
 
   const [currentDate, setCurrentDate] = React.useState(new Date());
   const [selectedTaskId, setSelectedTaskId] = React.useState<string | null>(null);
@@ -114,39 +126,41 @@ function CalendarPageContent({ defaultView }: CalendarPageProps) {
     const start = new Date(currentDate);
     const end = new Date(currentDate);
 
-    if (viewParam === "month") {
-      start.setDate(1);
-      start.setHours(0, 0, 0, 0);
-      // Include starting offsets of the month grid
-      const dayOffset = start.getDay();
-      start.setDate(start.getDate() - dayOffset);
+    // ALWAYS query the full month grid range regardless of viewParam
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+    // Include starting offsets of the month grid
+    const dayOffset = start.getDay();
+    start.setDate(start.getDate() - dayOffset);
 
-      end.setMonth(end.getMonth() + 1);
-      end.setDate(0);
-      end.setHours(23, 59, 59, 999);
-      // Include trailing offsets
-      const trailingOffset = 6 - end.getDay();
-      end.setDate(end.getDate() + trailingOffset);
-    } else if (viewParam === "week") {
-      const dayOffset = start.getDay();
-      start.setDate(start.getDate() - dayOffset);
-      start.setHours(0, 0, 0, 0);
-
-      end.setTime(start.getTime());
-      end.setDate(end.getDate() + 6);
-      end.setHours(23, 59, 59, 999);
-    } else {
-      // Day view or default
-      start.setHours(0, 0, 0, 0);
-      end.setTime(start.getTime());
-      end.setHours(23, 59, 59, 999);
-    }
+    end.setMonth(end.getMonth() + 1);
+    end.setDate(0);
+    end.setHours(23, 59, 59, 999);
+    // Include trailing offsets
+    const trailingOffset = 6 - end.getDay();
+    end.setDate(end.getDate() + trailingOffset);
 
     return {
       start: start.toISOString(),
       end: end.toISOString(),
     };
-  }, [currentDate, viewParam]);
+  }, [currentDate]);
+
+  // Compute 7 days of the week containing currentDate for week view
+  const weekDays = React.useMemo(() => {
+    const days = [];
+    const startOfWeek = new Date(currentDate);
+    const dayOffset = startOfWeek.getDay();
+    startOfWeek.setDate(startOfWeek.getDate() - dayOffset);
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(startOfWeek);
+      d.setDate(startOfWeek.getDate() + i);
+      days.push(d);
+    }
+    return days;
+  }, [currentDate]);
 
   // Queries
   const { data: tasks = [], isLoading, isError } = api.calendar.getCalendarTasks.useQuery(
@@ -185,19 +199,52 @@ function CalendarPageContent({ defaultView }: CalendarPageProps) {
   });
 
   const createTaskMutation = api.task.createTask.useMutation({
-    onSuccess: () => {
-      toast.success("Task created successfully!");
-      utils.calendar.getCalendarTasks.invalidate();
-      utils.task.getMyTasks.invalidate();
+    onMutate: async (newTask) => {
+      // Close the modal instantly
       setCreateTaskDate(null);
       // Reset form
       setNewTaskTitle("");
       setNewTaskDesc("");
       setNewTaskPriority("medium");
       setNewTaskHiveId("personal");
+
+      await utils.calendar.getCalendarTasks.cancel({ start: rangeBounds.start, end: rangeBounds.end });
+      const previous = utils.calendar.getCalendarTasks.getData({ start: rangeBounds.start, end: rangeBounds.end });
+
+      const targetHive = hivesData.find((h) => h.id === newTask.hiveId);
+      const tempTask = {
+        id: "temp-task-" + Math.random().toString(),
+        title: newTask.title,
+        description: newTask.description ?? null,
+        status: "todo",
+        priority: newTask.priority || "medium",
+        dueAt: newTask.dueAt ? new Date(newTask.dueAt) : null,
+        hiveId: newTask.hiveId || null,
+        hiveName: targetHive?.name || null,
+        courseCode: targetHive?.courseCode || null,
+        colorTheme: targetHive?.colorTheme || null,
+      };
+
+      utils.calendar.getCalendarTasks.setData({ start: rangeBounds.start, end: rangeBounds.end }, (old) => {
+        if (!old) return [tempTask] as any;
+        return [...old, tempTask] as any;
+      });
+
+      return { previous };
     },
-    onError: (err) => {
+    onSuccess: () => {
+      toast.success("Task created successfully!");
+      utils.calendar.getCalendarTasks.invalidate();
+      utils.task.getMyTasks.invalidate();
+    },
+    onError: (err, _variables, context) => {
+      if (context?.previous) {
+        utils.calendar.getCalendarTasks.setData({ start: rangeBounds.start, end: rangeBounds.end }, context.previous);
+      }
       toast.error(err.message || "Failed to create task.");
+    },
+    onSettled: () => {
+      utils.calendar.getCalendarTasks.invalidate();
     }
   });
 
@@ -225,9 +272,17 @@ function CalendarPageContent({ defaultView }: CalendarPageProps) {
     });
   };
 
-  // Switch view URL parameter
+  // Switch view URL parameter to routes for consistency
   const setView = (view: typeof viewParam) => {
-    router.push(`/calendar?view=${view}`);
+    if (view === "month") {
+      router.push("/calendar");
+    } else if (view === "week") {
+      router.push("/calendar/week");
+    } else if (view === "day") {
+      router.push("/calendar/day");
+    } else {
+      router.push(`/calendar?view=${view}`);
+    }
   };
 
   // Grid dates generator
@@ -426,7 +481,7 @@ function CalendarPageContent({ defaultView }: CalendarPageProps) {
                   <div className="w-16 py-2.5 text-center text-[10px] font-bold text-muted-foreground shrink-0 border-r border-border/20 uppercase tracking-wider">
                     Time
                   </div>
-                  {daysGrid.slice(0, 7).map((day) => {
+                  {weekDays.map((day) => {
                     const isToday = day.toDateString() === new Date().toDateString();
                     return (
                       <div
@@ -458,7 +513,7 @@ function CalendarPageContent({ defaultView }: CalendarPageProps) {
                       </div>
 
                       {/* Day Dropzones */}
-                      {daysGrid.slice(0, 7).map((day) => {
+                      {weekDays.map((day) => {
                         const targetTime = new Date(day);
                         targetTime.setHours(hour, 0, 0, 0);
 
@@ -685,8 +740,18 @@ function CalendarPageContent({ defaultView }: CalendarPageProps) {
 
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Due At</label>
-                <div className="text-muted-foreground bg-muted/30 p-2.5 rounded-lg border text-xs">
-                  {createTaskDate?.toLocaleString()}
+                <div className="relative flex items-center group cursor-pointer">
+                  <CalendarIcon className="absolute left-3 size-3.5 text-muted-foreground group-hover:text-primary transition-colors pointer-events-none" />
+                  <Input
+                    type="datetime-local"
+                    value={formatLocalISO(createTaskDate)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCreateTaskDate(val ? new Date(val) : null);
+                    }}
+                    className="pl-9 h-9 text-xs focus-visible:ring-1 cursor-pointer bg-transparent"
+                    required
+                  />
                 </div>
               </div>
             </div>

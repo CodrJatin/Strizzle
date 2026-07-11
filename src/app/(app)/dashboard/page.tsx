@@ -103,6 +103,82 @@ export default function DashboardPage() {
   const [selectedTaskId, setSelectedTaskId] = React.useState<string | null>(null);
   const [toggledTaskIds, setToggledTaskIds] = React.useState<Record<string, boolean>>({});
 
+  // Task creation states
+  const [createTaskOpen, setCreateTaskOpen] = React.useState(false);
+  const [newTaskTitle, setNewTaskTitle] = React.useState("");
+  const [newTaskDesc, setNewTaskDesc] = React.useState("");
+  const [newTaskPriority, setNewTaskPriority] = React.useState<"low" | "medium" | "high" | "urgent">("medium");
+  const [newTaskHiveId, setNewTaskHiveId] = React.useState<string>("personal");
+  const [newTaskDueAt, setNewTaskDueAt] = React.useState("");
+
+  const resetCreateTaskForm = () => {
+    setNewTaskTitle("");
+    setNewTaskDesc("");
+    setNewTaskPriority("medium");
+    setNewTaskHiveId("personal");
+    setNewTaskDueAt("");
+  };
+
+  const createTaskMutation = api.task.createTask.useMutation({
+    onMutate: async (newTask) => {
+      // Close the modal instantly
+      setCreateTaskOpen(false);
+      // Reset form
+      resetCreateTaskForm();
+
+      await utils.task.getMyTasks.cancel();
+      const previous = utils.task.getMyTasks.getData();
+
+      const targetHive = hives.find((h) => h.id === newTask.hiveId);
+      const tempTask = {
+        id: "temp-task-" + Math.random().toString(),
+        title: newTask.title,
+        description: newTask.description ?? null,
+        status: "todo",
+        priority: newTask.priority || "medium",
+        dueAt: newTask.dueAt ? new Date(newTask.dueAt) : null,
+        hiveId: newTask.hiveId || null,
+        hiveName: targetHive?.name || null,
+        courseCode: targetHive?.courseCode || null,
+        colorTheme: targetHive?.colorTheme || null,
+      };
+
+      utils.task.getMyTasks.setData(undefined, (old) => {
+        if (!old) return [tempTask] as any;
+        return [tempTask, ...old] as any;
+      });
+
+      return { previous };
+    },
+    onSuccess: () => {
+      toast.success("Task created successfully!");
+      utils.task.getMyTasks.invalidate();
+      utils.calendar.getCalendarTasks.invalidate();
+    },
+    onError: (err, _variables, context) => {
+      if (context?.previous) {
+        utils.task.getMyTasks.setData(undefined, context.previous);
+      }
+      toast.error(err.message || "Failed to create task.");
+    },
+    onSettled: () => {
+      utils.task.getMyTasks.invalidate();
+    }
+  });
+
+  const handleCreateTaskSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTaskTitle.trim()) return;
+
+    createTaskMutation.mutate({
+      title: newTaskTitle.trim(),
+      description: newTaskDesc.trim() || null,
+      priority: newTaskPriority,
+      dueAt: newTaskDueAt ? new Date(newTaskDueAt).toISOString() : null,
+      hiveId: newTaskHiveId === "personal" ? null : newTaskHiveId,
+    });
+  };
+
   const { data: myTasks = [], isLoading: isLoadingTasks } = api.task.getMyTasks.useQuery(undefined, {
     staleTime: 120000,
   });
@@ -364,6 +440,20 @@ export default function DashboardPage() {
                       No upcoming tasks or deadlines assigned to you.
                     </p>
                   </div>
+                   <Button 
+                    onClick={() => {
+                      const today = new Date();
+                      today.setHours(12, 0, 0, 0);
+                      const tzOffset = today.getTimezoneOffset() * 60000;
+                      const formatted = new Date(today.getTime() - tzOffset).toISOString().slice(0, 16);
+                      setNewTaskDueAt(formatted);
+                      setCreateTaskOpen(true);
+                    }}
+                    variant="outline"
+                    className="text-xs rounded-xl h-8 px-4 border-border/60 text-foreground cursor-pointer mx-auto block hover:bg-muted font-bold"
+                  >
+                    Create a Task
+                  </Button>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -512,6 +602,113 @@ export default function DashboardPage() {
           onClose={() => setSelectedTaskId(null)}
         />
       )}
+
+      {/* Create Task Dialog */}
+      <Dialog open={createTaskOpen} onOpenChange={(open) => { 
+        if (!open) {
+          setCreateTaskOpen(false); 
+          resetCreateTaskForm();
+        }
+      }}>
+        <DialogContent className="max-w-md bg-card border border-border p-6 rounded-2xl shadow-xl text-card-foreground">
+          <form onSubmit={handleCreateTaskSubmit}>
+            <DialogHeader className="pb-4 border-b border-border/40">
+              <DialogTitle className="text-sm font-bold flex items-center gap-1.5">
+                <Plus className="size-4.5 text-primary" />
+                Create New Task
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Add a task directly to your schedule.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="py-4 space-y-4 text-xs font-semibold">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Title</label>
+                <Input
+                  required
+                  value={newTaskTitle}
+                  onChange={(e) => setNewTaskTitle(e.target.value)}
+                  placeholder="e.g. Study Chemistry Chapter 4"
+                  className="h-9 focus-visible:ring-1 text-xs"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Description (Optional)</label>
+                <Input
+                  value={newTaskDesc}
+                  onChange={(e) => setNewTaskDesc(e.target.value)}
+                  placeholder="Brief notes or links..."
+                  className="h-9 focus-visible:ring-1 text-xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Priority</label>
+                  <select
+                    value={newTaskPriority}
+                    onChange={(e) => setNewTaskPriority(e.target.value as any)}
+                    className="w-full h-9 bg-card border border-border rounded-lg text-xs px-2 focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Associate with Hive</label>
+                  <select
+                    value={newTaskHiveId}
+                    onChange={(e) => setNewTaskHiveId(e.target.value)}
+                    className="w-full h-9 bg-card border border-border rounded-lg text-xs px-2 focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="personal">Personal (no hive)</option>
+                    {hives.map((h) => (
+                      <option key={h.id} value={h.id}>
+                        {h.courseCode || h.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Due At</label>
+                <div className="relative flex items-center group cursor-pointer">
+                  <Calendar className="absolute left-3 size-3.5 text-muted-foreground group-hover:text-primary transition-colors pointer-events-none" />
+                  <Input
+                    type="datetime-local"
+                    value={newTaskDueAt}
+                    onChange={(e) => setNewTaskDueAt(e.target.value)}
+                    className="pl-9 h-9 text-xs focus-visible:ring-1 cursor-pointer bg-transparent"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="pt-3 border-t border-border/40 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCreateTaskOpen(false)}
+                className="h-8.5 text-xs rounded-lg font-bold cursor-pointer"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="h-8.5 text-xs bg-primary text-primary-foreground hover:bg-primary/95 rounded-lg font-bold cursor-pointer shadow-xs"
+              >
+                Create Task
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );
