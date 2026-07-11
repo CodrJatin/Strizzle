@@ -10,6 +10,15 @@ const withSerwist = withSerwistInit({
 
 const nextConfig: NextConfig = {
   /* config options here */
+  webpack: (config) => {
+    return {
+      ...config,
+      treeshake: {
+        ...config.treeshake,
+        removeDebugLogging: true,
+      },
+    };
+  }
 };
 
 const sentryWrappedConfig = withSentryConfig(nextConfig, {
@@ -25,9 +34,6 @@ const sentryWrappedConfig = withSentryConfig(nextConfig, {
   // For all available options, see:
   // https://docs.sentry.io/primitives/fields/#event-data-filtering
   widenClientFileUpload: true,
-
-  // Automatically tree-shake Sentry logger statements to reduce bundle size
-  disableLogger: true,
 });
 
 export default withSerwist(sentryWrappedConfig);
