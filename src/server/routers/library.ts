@@ -186,10 +186,7 @@ export const libraryRouter = createTRPCRouter({
           .innerJoin(hiveMembers, eq(hiveMaterialShares.hiveId, hiveMembers.hiveId))
           .innerJoin(materials, eq(hiveMaterialShares.materialId, materials.id))
           .where(
-            and(
-              eq(hiveMembers.userId, ctx.user.id),
-              sql`${materials.ownerId} != ${ctx.user.id}`
-            )
+            eq(hiveMembers.userId, ctx.user.id)
           )
           .orderBy(desc(hiveMaterialShares.sharedAt));
 

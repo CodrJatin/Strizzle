@@ -3,9 +3,11 @@
 import * as React from "react";
 import { 
   BookOpen, Search, Star, LayoutGrid, List, Layers, Plus, 
-  HelpCircle, ArrowUpDown, ShieldAlert, Sparkles, FolderOpen, Loader2, FileText
+  HelpCircle, ArrowUpDown, ShieldAlert, Sparkles, FolderOpen, Loader2, FileText,
+  ChevronDown
 } from "lucide-react";
 import { toast } from "sonner";
+import { motion, AnimatePresence } from "framer-motion";
 
 import { api } from "@/lib/trpc/client";
 import { useQuickAddStore } from "@/store/quickAddStore";
@@ -49,6 +51,16 @@ export default function LibraryPage() {
   const [sortBy, setSortBy] = React.useState<"addedAt" | "title">("addedAt");
   const [sortOrder, setSortOrder] = React.useState<"asc" | "desc">("desc");
   const [viewMode, setViewMode] = React.useState<"grid" | "list">("grid");
+
+  // Expanded/collapsed hives state mapping
+  const [expandedHives, setExpandedHives] = React.useState<Record<string, boolean>>({});
+
+  const toggleHiveExpand = (hiveId: string) => {
+    setExpandedHives((prev) => ({
+      ...prev,
+      [hiveId]: prev[hiveId] === false ? true : false,
+    }));
+  };
 
   // Dialog State
   const [deletingItem, setDeletingItem] = React.useState<LibraryItem | null>(null);
@@ -309,183 +321,215 @@ export default function LibraryPage() {
         </div>
       </div>
 
-      {/* Two Layout Columns: My Materials & From My Hives */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 min-w-0">
-        
-        {/* Main Column: My Materials */}
-        <div className="lg:col-span-3 space-y-6 min-w-0">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold tracking-tight text-foreground flex items-center gap-2">
-              My Materials 
-              {isRefetching && <Loader2 className="size-4 animate-spin text-primary" />}
-            </h2>
-            <span className="text-xs text-muted-foreground">
-              Total: {items.length} {items.length === 1 ? "material" : "materials"}
-            </span>
-          </div>
+      {/* My Materials Section */}
+      <div className="space-y-6 min-w-0">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold tracking-tight text-foreground flex items-center gap-2">
+            My Materials 
+            {isRefetching && <Loader2 className="size-4 animate-spin text-primary" />}
+          </h2>
+          <span className="text-xs text-muted-foreground">
+            Total: {items.length} {items.length === 1 ? "material" : "materials"}
+          </span>
+        </div>
 
-          {/* Skeletons Loading */}
-          {isLoading && (
+        {/* Skeletons Loading */}
+        {isLoading && (
+          <div className={cn(
+            viewMode === "grid" 
+              ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" 
+              : "flex flex-col gap-3"
+          )}>
+            {Array.from({ length: 6 }).map((_, idx) => (
+              <LibraryMaterialCard key={idx} viewMode={viewMode} isShimmer={true} />
+            ))}
+          </div>
+        )}
+
+        {/* Empty State */}
+        {!isLoading && items.length === 0 && (
+          <div className="border border-dashed border-border/80 rounded-2xl p-16 text-center bg-card flex flex-col items-center justify-center max-w-xl mx-auto my-6 shadow-xs">
+            <FolderOpen className="size-12 text-muted-foreground mb-4 opacity-60" />
+            <h3 className="text-sm font-bold text-foreground mb-1">No library materials found</h3>
+            <p className="text-xs text-muted-foreground max-w-xs mb-6 leading-relaxed">
+              {searchDebounced 
+                ? "Adjust search keywords or check active filter pills above." 
+                : "Organize items from your Desk shelf, or use the quick capture dialog to add resources."}
+            </p>
+            {!searchDebounced && (
+              <Button onClick={openQuickAdd} variant="outline" className="rounded-xl px-4 py-2 text-xs font-semibold cursor-pointer">
+                Capture Resource
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* Card List / Grid Content */}
+        {!isLoading && items.length > 0 && (
+          <div className="space-y-6">
             <div className={cn(
               viewMode === "grid" 
                 ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" 
                 : "flex flex-col gap-3"
             )}>
-              {Array.from({ length: 6 }).map((_, idx) => (
-                <LibraryMaterialCard key={idx} viewMode={viewMode} isShimmer={true} />
+              {items.map((item) => (
+                <LibraryMaterialCard
+                  key={item.id}
+                  item={item}
+                  viewMode={viewMode}
+                  onDeleteClick={setDeletingItem}
+                  onTextOpenClick={setViewingTextItem}
+                  queryFilter={queryFilter}
+                />
               ))}
             </div>
-          )}
 
-          {/* Empty State */}
-          {!isLoading && items.length === 0 && (
-            <div className="border border-dashed border-border/80 rounded-2xl p-16 text-center bg-card flex flex-col items-center justify-center max-w-xl mx-auto my-6 shadow-xs">
-              <FolderOpen className="size-12 text-muted-foreground mb-4 opacity-60" />
-              <h3 className="text-sm font-bold text-foreground mb-1">No library materials found</h3>
-              <p className="text-xs text-muted-foreground max-w-xs mb-6 leading-relaxed">
-                {searchDebounced 
-                  ? "Adjust search keywords or check active filter pills above." 
-                  : "Organize items from your Desk shelf, or use the quick capture dialog to add resources."}
-              </p>
-              {!searchDebounced && (
-                <Button onClick={openQuickAdd} variant="outline" className="rounded-xl px-4 py-2 text-xs font-semibold cursor-pointer">
-                  Capture Resource
+            {/* Load More Trigger */}
+            {hasNextPage && (
+              <div className="flex justify-center pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => fetchNextPage()}
+                  disabled={isFetchingNextPage}
+                  className="rounded-xl px-6 h-10 border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/40 font-semibold text-xs"
+                >
+                  {isFetchingNextPage ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin text-primary mr-2" />
+                      Loading more...
+                    </>
+                  ) : (
+                    "Load More Materials"
+                  )}
                 </Button>
-              )}
-            </div>
-          )}
-
-          {/* Card List / Grid Content */}
-          {!isLoading && items.length > 0 && (
-            <div className="space-y-6">
-              <div className={cn(
-                viewMode === "grid" 
-                  ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" 
-                  : "flex flex-col gap-3"
-              )}>
-                {items.map((item) => (
-                  <LibraryMaterialCard
-                    key={item.id}
-                    item={item}
-                    viewMode={viewMode}
-                    onDeleteClick={setDeletingItem}
-                    onTextOpenClick={setViewingTextItem}
-                    queryFilter={queryFilter}
-                  />
-                ))}
               </div>
+            )}
+          </div>
+        )}
+      </div>
 
-              {/* Load More Trigger */}
-              {hasNextPage && (
-                <div className="flex justify-center pt-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => fetchNextPage()}
-                    disabled={isFetchingNextPage}
-                    className="rounded-xl px-6 h-10 border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/40 font-semibold text-xs"
-                  >
-                    {isFetchingNextPage ? (
-                      <>
-                        <Loader2 className="size-4 animate-spin text-primary mr-2" />
-                        Loading more...
-                      </>
-                    ) : (
-                      "Load More Materials"
-                    )}
-                  </Button>
-                </div>
-              )}
+      {/* From My Hives Section */}
+      <div className="space-y-6 min-w-0 pt-8 border-t border-border/40">
+        <h2 className="text-lg font-bold tracking-tight text-foreground flex items-center justify-between">
+          From My Hives
+          {isLoadingHiveMaterials && <Loader2 className="size-4 animate-spin text-primary" />}
+        </h2>
+        
+        {isLoadingHiveMaterials ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <div key={idx} className="h-24 w-full bg-muted/40 rounded-2xl animate-pulse" />
+            ))}
+          </div>
+        ) : groupedHiveMaterials.length === 0 ? (
+          <div className="border border-border/60 bg-card rounded-2xl p-8 shadow-xs text-center space-y-4 max-w-md mx-auto">
+            <div className="size-11 rounded-xl bg-indigo-500/10 text-indigo-500 border border-indigo-500/10 flex items-center justify-center mx-auto shadow-inner">
+              <Layers className="size-5.5" />
             </div>
-          )}
-        </div>
-
-        {/* Right Sidebar: From My Hives */}
-        <div className="lg:col-span-1 space-y-6 shrink-0">
-          <h2 className="text-lg font-bold tracking-tight text-foreground flex items-center justify-between">
-            From My Hives
-            {isLoadingHiveMaterials && <Loader2 className="size-4 animate-spin text-primary" />}
-          </h2>
-          
-          {isLoadingHiveMaterials ? (
-            <div className="space-y-3">
-              {Array.from({ length: 3 }).map((_, idx) => (
-                <div key={idx} className="h-24 w-full bg-muted/40 rounded-2xl animate-pulse" />
-              ))}
+            
+            <div className="space-y-1">
+              <h3 className="text-sm font-bold text-foreground">No shared materials</h3>
+              <p className="text-xs text-muted-foreground leading-normal max-w-[240px] mx-auto">
+                Resources shared by classmates in your active hives will appear here.
+              </p>
             </div>
-          ) : groupedHiveMaterials.length === 0 ? (
-            <div className="border border-border/60 bg-card rounded-2xl p-5 shadow-xs text-center space-y-4">
-              <div className="size-11 rounded-xl bg-indigo-500/10 text-indigo-500 border border-indigo-500/10 flex items-center justify-center mx-auto shadow-inner">
-                <Layers className="size-5.5" />
-              </div>
-              
-              <div className="space-y-1">
-                <h3 className="text-sm font-bold text-foreground">No shared materials</h3>
-                <p className="text-[11px] text-muted-foreground leading-normal max-w-[200px] mx-auto">
-                  Resources shared by classmates in your active hives will appear here.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {groupedHiveMaterials.map((group) => (
-                <div key={group.hiveId} className="space-y-3">
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {groupedHiveMaterials.map((group) => {
+              const isExpanded = expandedHives[group.hiveId] !== false;
+              return (
+                <div key={group.hiveId} className="border border-border/60 bg-card rounded-2xl overflow-hidden shadow-xs">
                   {/* Hive Section Header */}
-                  <h3 className="text-[10px] font-extrabold text-muted-foreground tracking-wider uppercase px-1 flex items-center gap-1.5 leading-none">
-                    <Layers className="size-3.5 text-primary shrink-0" />
-                    <span className="truncate">{group.hiveCode ? `${group.hiveCode} - ` : ""}{group.hiveName}</span>
-                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => toggleHiveExpand(group.hiveId)}
+                    className="w-full px-5 py-4 flex items-center justify-between bg-muted/20 hover:bg-muted/40 transition-colors text-left border-b border-border/40 cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Layers className="size-4.5 text-primary shrink-0" />
+                      <span className="text-sm font-bold text-foreground truncate">
+                        {group.hiveCode ? `${group.hiveCode} - ` : ""}{group.hiveName}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="text-xs font-semibold text-muted-foreground bg-muted/60 px-2.5 py-0.5 rounded-full">
+                        {group.items.length} {group.items.length === 1 ? "item" : "items"}
+                      </span>
+                      <ChevronDown
+                        className={cn(
+                          "size-4 text-muted-foreground transition-transform duration-200",
+                          !isExpanded && "-rotate-90"
+                        )}
+                      />
+                    </div>
+                  </button>
 
-                  {/* Materials Stack */}
-                  <div className="space-y-2">
-                    {group.items.map((item) => {
-                      const m = item.material;
-                      return (
-                        <Card 
-                          key={item.shareId} 
-                          className="group relative border-border/55 shadow-xs bg-card hover:shadow-sm rounded-xl overflow-hidden transition-all duration-200"
-                        >
-                          <CardContent className="p-3 flex items-center gap-3">
-                            {/* Small Icon Badge */}
-                            <div className="size-9 rounded-lg bg-muted/40 border border-border/40 flex items-center justify-center shrink-0">
-                              <FileText className="size-4.5 text-muted-foreground" />
-                            </div>
+                  {/* Collapsible Content */}
+                  <AnimatePresence initial={false}>
+                    {isExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2, ease: "easeInOut" }}
+                        className="overflow-hidden"
+                      >
+                        <div className="p-5">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                            {group.items.map((item) => {
+                              const m = item.material;
+                              return (
+                                <Card 
+                                  key={item.shareId} 
+                                  className="group relative border-border/55 shadow-xs bg-card hover:shadow-sm rounded-xl overflow-hidden transition-all duration-200"
+                                >
+                                  <CardContent className="p-3 flex items-center gap-3">
+                                    {/* Small Icon Badge */}
+                                    <div className="size-9 rounded-lg bg-muted/40 border border-border/40 flex items-center justify-center shrink-0">
+                                      <FileText className="size-4.5 text-muted-foreground" />
+                                    </div>
 
-                            {/* Details */}
-                            <div className="flex-1 min-w-0">
-                              <h4 className="text-xs font-bold text-foreground truncate" title={m.title || "Untitled"}>
-                                {m.title || "Untitled shared material"}
-                              </h4>
-                              <p className="text-[10px] text-muted-foreground mt-0.5 truncate uppercase">
-                                {m.contentType}
-                              </p>
-                            </div>
-                          </CardContent>
+                                    {/* Details */}
+                                    <div className="flex-1 min-w-0">
+                                      <h4 className="text-xs font-bold text-foreground truncate" title={m.title || "Untitled"}>
+                                        {m.title || "Untitled shared material"}
+                                      </h4>
+                                      <p className="text-[10px] text-muted-foreground mt-0.5 truncate uppercase">
+                                        {m.contentType}
+                                      </p>
+                                    </div>
+                                  </CardContent>
 
-                          {/* Hover Overlay with Copy to Library */}
-                          <div className="absolute inset-0 bg-background/90 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center justify-center gap-2 px-3">
-                            <Button
-                              onClick={() => addToLibraryMutation.mutate({ materialId: m.id })}
-                              variant="default"
-                              size="xs"
-                              disabled={addToLibraryMutation.isPending}
-                              className="h-7 text-[10px] font-bold rounded-lg shadow-sm w-full"
-                            >
-                              {addToLibraryMutation.isPending ? (
-                                <Loader2 className="size-3 animate-spin" />
-                              ) : (
-                                "Copy to Library"
-                              )}
-                            </Button>
+                                  {/* Hover Overlay with Copy to Library */}
+                                  <div className="absolute inset-0 bg-background/95 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center justify-center gap-2 px-3">
+                                    <Button
+                                      onClick={() => addToLibraryMutation.mutate({ materialId: m.id })}
+                                      variant="default"
+                                      size="xs"
+                                      disabled={addToLibraryMutation.isPending}
+                                      className="h-7.5 text-[10px] font-bold rounded-lg shadow-sm w-full cursor-pointer"
+                                    >
+                                      {addToLibraryMutation.isPending ? (
+                                        <Loader2 className="size-3 animate-spin" />
+                                      ) : (
+                                        "Copy to Library"
+                                      )}
+                                    </Button>
+                                  </div>
+                                </Card>
+                              );
+                            })}
                           </div>
-                        </Card>
-                      );
-                    })}
-                  </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+              );
+            })}
+          </div>
+        )}
 
       </div>
 
