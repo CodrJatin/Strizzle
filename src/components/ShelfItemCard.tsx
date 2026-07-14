@@ -15,6 +15,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { useConfirmStore } from "@/store/confirmStore";
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -95,6 +96,7 @@ function getFileDetails(mimeType: string | null) {
 export function ShelfItemCard({ item, onActionClick, isShimmer = false }: ShelfItemCardProps) {
   const utils = api.useUtils();
   const supabase = createClient();
+  const confirm = useConfirmStore((s) => s.confirm);
   const [actionsOpen, setActionsOpen] = React.useState(false);
 
   // Mutations for quick desk operations
@@ -175,9 +177,17 @@ export function ShelfItemCard({ item, onActionClick, isShimmer = false }: ShelfI
   const isPendingMutation = deleteShelfItem.isPending || moveToLibrary.isPending;
 
   // Actions
-  const handleRemove = (e: React.MouseEvent) => {
+  const handleRemove = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    deleteShelfItem.mutate({ id: item.id });
+    const confirmed = await confirm({
+      title: "Remove Item",
+      description: `Are you sure you want to remove "${material.title || material.fileName || "this item"}" from your desk?`,
+      confirmText: "Remove",
+      variant: "destructive",
+    });
+    if (confirmed) {
+      deleteShelfItem.mutate({ id: item.id });
+    }
   };
 
   const handleMoveToLibrary = (e: React.MouseEvent) => {
