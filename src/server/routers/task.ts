@@ -476,12 +476,29 @@ export const taskRouter = createTRPCRouter({
     }),
 
   getMyTasks: protectedProcedure
-    .query(async ({ ctx }) => {
+    .input(z.object({
+      includeCompleted: z.boolean().optional().default(false)
+    }).optional())
+    .query(async ({ ctx, input }) => {
       try {
+        const includeCompleted = input?.includeCompleted ?? false;
+        
+        const conditions = [
+          or(
+            eq(tasks.assigneeId, ctx.user.id),
+            and(eq(tasks.creatorId, ctx.user.id), isNull(tasks.hiveId))
+          )
+        ];
+
+        if (!includeCompleted) {
+          conditions.push(ne(tasks.status, 'done'));
+        }
+
         const results = await ctx.db
           .select({
             id: tasks.id,
             title: tasks.title,
+            description: tasks.description,
             status: tasks.status,
             priority: tasks.priority,
             dueAt: tasks.dueAt,
@@ -492,18 +509,37 @@ export const taskRouter = createTRPCRouter({
           })
           .from(tasks)
           .leftJoin(hives, eq(tasks.hiveId, hives.id))
-          .where(
-            and(
-              or(
-                eq(tasks.assigneeId, ctx.user.id),
-                and(eq(tasks.creatorId, ctx.user.id), isNull(tasks.hiveId))
-              ),
-              ne(tasks.status, 'done')
-            )
-          )
+          .where(and(...conditions))
           .orderBy(sql`${tasks.dueAt} ASC NULLS LAST`);
 
-        return results;
+        if (results.length === 0) return [];
+
+        const taskIds = results.map((t) => t.id);
+        const refs = await ctx.db
+          .select({
+            taskId: taskMaterialRefs.taskId,
+            materialId: taskMaterialRefs.materialId,
+            title: materials.title,
+            contentType: materials.contentType,
+          })
+          .from(taskMaterialRefs)
+          .innerJoin(materials, eq(taskMaterialRefs.materialId, materials.id))
+          .where(inArray(taskMaterialRefs.taskId, taskIds));
+
+        const refsMap = refs.reduce((acc, ref) => {
+          if (!acc[ref.taskId]) acc[ref.taskId] = [];
+          acc[ref.taskId].push({
+            id: ref.materialId,
+            title: ref.title || "Untitled",
+            contentType: ref.contentType,
+          });
+          return acc;
+        }, {} as Record<string, Array<{ id: string; title: string; contentType: string }>>);
+
+        return results.map((task) => ({
+          ...task,
+          materials: refsMap[task.id] || [],
+        }));
       } catch (error) {
         console.error("Error in getMyTasks:", error);
         throw new TRPCError({

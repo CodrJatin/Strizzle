@@ -545,13 +545,21 @@ export default function DashboardPage() {
                 </div>
               )}
 
-              <Button
-                variant="outline"
-                onClick={() => router.push("/calendar")}
-                className="w-full text-xs rounded-xl h-9 hover:bg-muted border-border/60 text-foreground font-semibold cursor-pointer"
-              >
-                View Schedule Calendar
-              </Button>
+              <div className="flex flex-col gap-2">
+                <Button
+                  onClick={() => router.push("/dashboard/tasks")}
+                  className="w-full text-xs rounded-xl h-9 bg-primary text-primary-foreground hover:bg-primary/95 font-semibold cursor-pointer shadow-xs"
+                >
+                  Go to Task Board
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => router.push("/calendar")}
+                  className="w-full text-xs rounded-xl h-9 hover:bg-muted border-border/60 text-foreground font-semibold cursor-pointer"
+                >
+                  View Schedule Calendar
+                </Button>
+              </div>
             </div>
           </div>
         </div>

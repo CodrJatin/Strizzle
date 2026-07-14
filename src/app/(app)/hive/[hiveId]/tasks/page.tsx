@@ -4,7 +4,7 @@ import * as React from "react";
 import { 
   DndContext, DragEndEvent, PointerSensor, 
   useSensor, useSensors, KeyboardSensor, closestCorners,
-  DragOverlay, DragStartEvent
+  DragOverlay, DragStartEvent, DragOverEvent, useDroppable
 } from "@dnd-kit/core";
 import { 
   SortableContext, verticalListSortingStrategy, 
@@ -12,9 +12,11 @@ import {
 } from "@dnd-kit/sortable";
 import { 
   Plus, Search, Filter, Users, CheckSquare, Loader2,
-  Calendar, AlertCircle, X, Shield, PlusCircle
+  Calendar, AlertCircle, X, Shield, PlusCircle, Trash2
 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { useConfirmStore } from "@/store/confirmStore";
 
 import { api } from "@/lib/trpc/client";
 import { TaskCard, Task } from "@/components/TaskCard";
@@ -36,9 +38,76 @@ const COLUMNS: Array<{ id: Task["status"]; title: string; color: string }> = [
   { id: "done", title: "Completed", color: "bg-emerald-500 dark:bg-emerald-600" },
 ];
 
+interface TaskColumnProps {
+  id: Task["status"];
+  title: string;
+  color: string;
+  tasks: Task[];
+  overColumnId: string | null;
+  onTaskClick: (taskId: string) => void;
+  onMoveColumn: (taskId: string, newStatus: Task["status"]) => void;
+  onDeleteClick: (taskId: string) => void;
+}
+
+function TaskColumn({ id, title, color, tasks, overColumnId, onTaskClick, onMoveColumn, onDeleteClick }: TaskColumnProps) {
+  const { setNodeRef } = useDroppable({ id });
+  const isOver = overColumnId === id;
+
+  return (
+    <div 
+      ref={setNodeRef}
+      className={cn(
+        "flex flex-col rounded-2xl border bg-muted/20 dark:bg-zinc-950/20 max-h-[80vh] overflow-hidden transition-all duration-200",
+        isOver 
+          ? "border-primary bg-primary/5 dark:bg-primary/5 ring-2 ring-primary/10" 
+          : "border-border/60"
+      )}
+    >
+      {/* Column Header */}
+      <div className="flex items-center justify-between p-3.5 border-b border-border/40 shrink-0">
+        <div className="flex items-center gap-2">
+          <span className={`size-2.5 rounded-full ${color}`} />
+          <span className="text-xs font-bold text-foreground/90">{title}</span>
+        </div>
+        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-muted text-muted-foreground border">
+          {tasks.length}
+        </span>
+      </div>
+
+      {/* Dropzone container */}
+      <SortableContext
+        id={id}
+        items={tasks.map((t) => t.id)}
+        strategy={verticalListSortingStrategy}
+      >
+        <div 
+          className="flex-1 overflow-y-auto p-3 space-y-3 min-h-[150px]"
+        >
+          {tasks.length > 0 ? (
+            tasks.map((t) => (
+              <TaskCard
+                key={t.id}
+                task={t as any}
+                onClick={() => onTaskClick(t.id)}
+                onMoveColumn={(newStatus) => onMoveColumn(t.id, newStatus)}
+              />
+            ))
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center py-8 text-center text-muted-foreground/40 font-semibold border-2 border-dashed border-border/30 rounded-xl">
+              <CheckSquare className="size-5 mb-1 opacity-40" />
+              <span className="text-[10px]">No tasks</span>
+            </div>
+          )}
+        </div>
+      </SortableContext>
+    </div>
+  );
+}
+
 export default function HiveTasksPage({ params }: PageProps) {
   const { hiveId } = React.use(params);
   const utils = api.useUtils();
+  const confirm = useConfirmStore((s) => s.confirm);
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -49,6 +118,7 @@ export default function HiveTasksPage({ params }: PageProps) {
   const [createOpen, setCreateOpen] = React.useState(false);
   const [selectedTaskId, setSelectedTaskId] = React.useState<string | null>(null);
   const [activeTaskId, setActiveTaskId] = React.useState<string | null>(null);
+  const [overColumnId, setOverColumnId] = React.useState<string | null>(null);
 
   // New Task Form State
   const [newTitle, setNewTitle] = React.useState("");
@@ -145,6 +215,55 @@ export default function HiveTasksPage({ params }: PageProps) {
     },
   });
 
+  const deleteTaskMutation = api.task.deleteTask.useMutation({
+    onMutate: async (variables) => {
+      await utils.task.getTasks.cancel({ hiveId });
+      await utils.task.getMyTasks.cancel();
+
+      const previous = utils.task.getTasks.getData({ hiveId });
+      const previousMyTasks = utils.task.getMyTasks.getData();
+
+      utils.task.getTasks.setData({ hiveId }, (old) => {
+        if (!old) return old;
+        return old.filter((t) => t.id !== variables.id);
+      });
+
+      utils.task.getMyTasks.setData(undefined, (old) => {
+        if (!old) return old;
+        return old.filter((t) => t.id !== variables.id);
+      });
+
+      return { previous, previousMyTasks };
+    },
+    onSuccess: () => {
+      toast.success("Task deleted successfully.");
+      utils.task.getTasks.invalidate({ hiveId });
+      utils.task.getMyTasks.invalidate();
+      utils.calendar.getCalendarTasks.invalidate();
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previous) {
+        utils.task.getTasks.setData({ hiveId }, context.previous);
+      }
+      if (context?.previousMyTasks) {
+        utils.task.getMyTasks.setData(undefined, context.previousMyTasks);
+      }
+      toast.error("Failed to delete task.");
+    },
+  });
+
+  const handleDeleteTask = async (taskId: string) => {
+    const confirmed = await confirm({
+      title: "Delete Task",
+      description: "Are you sure you want to delete this task?",
+      confirmText: "Delete",
+      variant: "destructive",
+    });
+    if (confirmed) {
+      deleteTaskMutation.mutate({ id: taskId });
+    }
+  };
+
   // DnD Sensors
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -161,12 +280,33 @@ export default function HiveTasksPage({ params }: PageProps) {
     setActiveTaskId(event.active.id as string);
   };
 
+  const handleDragOver = (event: DragOverEvent) => {
+    const { active, over } = event;
+    if (!over) {
+      setOverColumnId(null);
+      return;
+    }
+
+    const overId = over.id as string;
+    const targetColumn = COLUMNS.find((col) => col.id === overId);
+    if (targetColumn) {
+      setOverColumnId(targetColumn.id);
+    } else {
+      const targetTask = tasks.find((t) => t.id === overId);
+      if (targetTask) {
+        setOverColumnId(targetTask.status);
+      }
+    }
+  };
+
   const handleDragCancel = () => {
     setActiveTaskId(null);
+    setOverColumnId(null);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
     setActiveTaskId(null);
+    setOverColumnId(null);
     const { active, over } = event;
     if (!over) return;
 
@@ -324,6 +464,7 @@ export default function HiveTasksPage({ params }: PageProps) {
           sensors={sensors}
           collisionDetection={closestCorners}
           onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
           onDragCancel={handleDragCancel}
         >
@@ -331,49 +472,17 @@ export default function HiveTasksPage({ params }: PageProps) {
             {COLUMNS.map((col) => {
               const colTasks = filteredTasks.filter((t) => t.status === col.id);
               return (
-                <div 
+                <TaskColumn
                   key={col.id}
-                  className="flex flex-col rounded-2xl border border-border/60 bg-muted/20 dark:bg-zinc-950/20 max-h-[80vh] overflow-hidden"
-                >
-                  {/* Column Header */}
-                  <div className="flex items-center justify-between p-3.5 border-b border-border/40 shrink-0">
-                    <div className="flex items-center gap-2">
-                      <span className={`size-2.5 rounded-full ${col.color}`} />
-                      <span className="text-xs font-bold text-foreground/90">{col.title}</span>
-                    </div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-muted text-muted-foreground border">
-                      {colTasks.length}
-                    </span>
-                  </div>
-
-                  {/* Dropzone container */}
-                  <SortableContext
-                    id={col.id}
-                    items={colTasks.map((t) => t.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    <div 
-                      id={col.id}
-                      className="flex-1 overflow-y-auto p-3 space-y-3 min-h-[150px]"
-                    >
-                      {colTasks.length > 0 ? (
-                        colTasks.map((t) => (
-                          <TaskCard
-                            key={t.id}
-                            task={t as any}
-                            onClick={() => setSelectedTaskId(t.id)}
-                            onMoveColumn={(newStatus) => handleMoveColumn(t.id, newStatus)}
-                          />
-                        ))
-                      ) : (
-                        <div className="h-full flex flex-col items-center justify-center py-8 text-center text-muted-foreground/40 font-semibold border-2 border-dashed border-border/30 rounded-xl">
-                          <CheckSquare className="size-5 mb-1 opacity-40" />
-                          <span className="text-[10px]">No tasks</span>
-                        </div>
-                      )}
-                    </div>
-                  </SortableContext>
-                </div>
+                  id={col.id}
+                  title={col.title}
+                  color={col.color}
+                  tasks={colTasks as any}
+                  overColumnId={overColumnId}
+                  onTaskClick={setSelectedTaskId}
+                  onMoveColumn={handleMoveColumn}
+                  onDeleteClick={handleDeleteTask}
+                />
               );
             })}
           </div>

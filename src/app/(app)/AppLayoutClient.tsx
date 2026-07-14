@@ -109,7 +109,7 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
       links: [
         { label: "Home", href: "/dashboard", icon: Home },
         { label: "Calendar", href: "/calendar", icon: Calendar },
-        { label: "Deadlines", href: "/calendar/deadlines", icon: CheckSquare },
+        { label: "Tasks", href: "/dashboard/tasks", icon: CheckSquare },
         { label: "My Workspace", href: "/desk", icon: Layers },
       ],
       actionLabel: "New Entry",
@@ -158,7 +158,7 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
         { label: "Month View", href: "/calendar", icon: Home },
         { label: "Week View", href: "/calendar/week", icon: Layers },
         { label: "Day View", href: "/calendar/day", icon: FileText },
-        { label: "Deadlines", href: "/calendar/deadlines", icon: CheckSquare },
+        { label: "Tasks", href: "/dashboard/tasks", icon: CheckSquare },
       ],
       actionLabel: "New Event",
     },

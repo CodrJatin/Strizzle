@@ -26,13 +26,18 @@ export interface Task {
   assigneeId?: string | null;
   assigneeName?: string | null;
   assigneeAvatar?: string | null;
-  materials: Array<{ id: string; title: string; contentType: string }>;
+  materials?: Array<{ id: string; title: string; contentType: string }>;
+  hiveId?: string | null;
+  hiveName?: string | null;
+  courseCode?: string | null;
+  colorTheme?: string | null;
 }
 
 interface TaskCardProps {
   task: Task;
   onClick: () => void;
   onMoveColumn?: (newStatus: Task["status"]) => void;
+  onDeleteClick?: () => void;
   isOverlay?: boolean;
 }
 
@@ -43,6 +48,34 @@ const priorityColors = {
   urgent: "bg-rose-50 text-rose-700 dark:bg-rose-950/20 dark:text-rose-400 border-rose-200/50 dark:border-rose-950/30 animate-pulse",
 };
 
+const themeStyles: Record<string, { bg: string; text: string; border: string }> = {
+  blue: {
+    bg: "bg-blue-500/10 dark:bg-blue-500/10",
+    text: "text-blue-700 dark:text-blue-400",
+    border: "border-blue-500/20 dark:border-blue-500/30",
+  },
+  green: {
+    bg: "bg-emerald-500/10 dark:bg-emerald-500/10",
+    text: "text-emerald-700 dark:text-emerald-400",
+    border: "border-emerald-500/20 dark:border-emerald-500/30",
+  },
+  indigo: {
+    bg: "bg-indigo-500/10 dark:bg-indigo-500/10",
+    text: "text-indigo-700 dark:text-indigo-400",
+    border: "border-indigo-500/20 dark:border-indigo-500/30",
+  },
+  rose: {
+    bg: "bg-rose-500/10 dark:bg-rose-500/10",
+    text: "text-rose-700 dark:text-rose-400",
+    border: "border-rose-500/20 dark:border-rose-500/30",
+  },
+  amber: {
+    bg: "bg-amber-500/10 dark:bg-amber-500/10",
+    text: "text-amber-700 dark:text-amber-400",
+    border: "border-amber-500/20 dark:border-amber-500/30",
+  },
+};
+
 const statusIcons = {
   todo: Square,
   in_progress: PlayCircle,
@@ -50,7 +83,7 @@ const statusIcons = {
   done: CheckCircle,
 };
 
-export function TaskCard({ task, onClick, onMoveColumn, isOverlay }: TaskCardProps) {
+export function TaskCard({ task, onClick, onMoveColumn, onDeleteClick, isOverlay }: TaskCardProps) {
   const {
     attributes,
     listeners,
@@ -99,17 +132,32 @@ export function TaskCard({ task, onClick, onMoveColumn, isOverlay }: TaskCardPro
       )}
       onClick={onClick}
     >
-      {/* Header Info (Priority + Dropdown controls) */}
+      {/* Header Info (Priority + Hive + Dropdown controls) */}
       <div className="flex items-center justify-between">
-        <Badge 
-          variant="outline" 
-          className={cn(
-            "text-[9px] px-2 py-0.5 font-bold uppercase tracking-wide rounded-md border shrink-0", 
-            priorityColors[task.priority]
+        <div className="flex items-center gap-1.5 min-w-0">
+          <Badge 
+            variant="outline" 
+            className={cn(
+              "text-[9px] px-2 py-0.5 font-bold uppercase tracking-wide rounded-md border shrink-0", 
+              priorityColors[task.priority]
+            )}
+          >
+            {task.priority}
+          </Badge>
+          {task.courseCode && (
+            <Badge
+              variant="outline"
+              className={cn(
+                "text-[9px] px-2 py-0.5 font-bold uppercase tracking-wide rounded-md border shrink-0",
+                themeStyles[task.colorTheme || "blue"]?.bg || "bg-blue-500/10",
+                themeStyles[task.colorTheme || "blue"]?.text || "text-blue-700",
+                themeStyles[task.colorTheme || "blue"]?.border || "border-blue-500/20"
+              )}
+            >
+              {task.courseCode}
+            </Badge>
           )}
-        >
-          {task.priority}
-        </Badge>
+        </div>
 
         <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
           {/* Accessible Menu for Move Options */}
@@ -140,6 +188,17 @@ export function TaskCard({ task, onClick, onMoveColumn, isOverlay }: TaskCardPro
                 <DropdownMenuItem disabled={task.status === "done"} onClick={() => onMoveColumn("done")} className="cursor-pointer">
                   Completed
                 </DropdownMenuItem>
+                {onDeleteClick && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={() => onDeleteClick()} 
+                      className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive font-bold font-sans"
+                    >
+                      Delete Task
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -196,7 +255,7 @@ export function TaskCard({ task, onClick, onMoveColumn, isOverlay }: TaskCardPro
           )}
 
           {/* Linked reference count badge */}
-          {task.materials.length > 0 && (
+          {task.materials && task.materials.length > 0 && (
             <div 
               className="flex items-center gap-1 text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-md border border-primary/20 shrink-0"
               title={`${task.materials.length} reference materials attached`}

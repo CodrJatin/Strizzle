@@ -125,8 +125,8 @@ export function GlobalSearch({ isOpen, onClose, attachMode = false, onSelect }: 
         toast.info("Navigated to Library to view study materials");
         break;
       case "task":
-        router.push("/desk");
-        toast.info("Navigated to Desk to view active tasks");
+        router.push("/dashboard/tasks");
+        toast.info("Navigated to Tasks to view active tasks");
         break;
       case "syllabus":
         if (hiveId) {
