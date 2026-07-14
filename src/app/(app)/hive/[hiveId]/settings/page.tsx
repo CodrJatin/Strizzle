@@ -690,7 +690,7 @@ export default function HiveSettingsPage({ params }: PageProps) {
                 <div className="p-6 border-b border-border/40 pb-4 flex items-center justify-between">
                   <h3 className="text-sm font-bold text-foreground">Active Links</h3>
                   <span className="text-[10px] font-bold text-muted-foreground/60 uppercase px-2 py-0.5 bg-muted/40 rounded-lg">
-                    {invites?.length || 0} active
+                    {invites?.filter((inv) => !inv.revokedAt && !(inv.expiresAt && new Date() > new Date(inv.expiresAt))).length || 0} active
                   </span>
                 </div>
 

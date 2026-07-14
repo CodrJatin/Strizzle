@@ -3,6 +3,7 @@ import { createTRPCRouter, protectedProcedure, enforceRole } from '../trpc';
 import { hives, hiveMembers, announcements, tasks, activityLog, hiveMaterialShares, users } from '@/db/schema';
 import { eq, desc, sql, and } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
+import { logActivity } from '../lib/logActivity';
 
 export const createHiveInputSchema = z.object({
   name: z.string().min(1).max(100),
@@ -157,6 +158,15 @@ export const hiveRouter = createTRPCRouter({
             message: 'Hive not found or update failed.',
           });
         }
+
+        // Log hive settings update activity
+        await logActivity(ctx.db, {
+          hiveId: input.hiveId,
+          actorId: ctx.user.id,
+          actionType: 'hive_settings_updated',
+          entityType: 'hive',
+          entityId: input.hiveId,
+        });
 
         return updated;
       } catch (error) {

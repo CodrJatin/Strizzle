@@ -14,7 +14,7 @@ export const shareMaterialToHiveInputSchema = z.object({
 export const getHiveMaterialsInputSchema = z.object({
   hiveId: z.string().uuid(),
   folderId: z.string().uuid().nullable().optional(),
-  limit: z.number().min(1).max(50).default(20),
+  limit: z.number().min(1).max(500).default(20),
   cursor: z.number().nullish(), // offset-based cursor
 });
 

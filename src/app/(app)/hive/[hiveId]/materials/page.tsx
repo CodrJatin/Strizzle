@@ -87,7 +87,7 @@ export default function MaterialsPage({ params }: PageProps) {
   const { data: allMaterialsData } = api.hiveMaterial.getHiveMaterials.useQuery(
     {
       hiveId,
-      limit: 100,
+      limit: 500, // Intentionally high — we need ALL materials to compute folder counts
     },
     { staleTime: 120000 } // Standard materials list: 2 minutes
   );

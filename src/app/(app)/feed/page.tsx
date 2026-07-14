@@ -92,7 +92,6 @@ export default function FeedPage() {
     });
   };
 
-  // Action text mapping for header description
   const getActionText = (actionType: string, meta: any) => {
     switch (actionType) {
       case "hive_joined":
@@ -100,7 +99,9 @@ export default function FeedPage() {
       case "announcement_created":
         return "posted an announcement";
       case "role_changed":
-        return `updated member role to ${meta?.role || "member"}`;
+        return `changed ${meta?.targetName ? `${meta.targetName}'s` : "a member's"} role to ${meta?.newRole || meta?.role || "member"}`;
+      case "hive_settings_updated":
+        return "updated the hive settings";
       case "material_created":
         return "shared a resource";
       case "task_created":
@@ -119,8 +120,10 @@ export default function FeedPage() {
         return "updated a syllabus topic";
       case "topic_deleted":
         return "deleted a syllabus topic";
+      case "member_removed":
+        return "removed a member from the hive";
       default:
-        return "updated the group";
+        return `performed an action (${actionType.replace(/_/g, " ")})`;
     }
   };
 
