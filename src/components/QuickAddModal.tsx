@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/trpc/client";
 import { hashFile } from "@/lib/hashFile";
 import { cn } from "@/lib/utils";
+import { useModalKeybinds } from "@/hooks/useModalKeybinds";
 
 export function QuickAddModal() {
   const { isOpen, close, defaultTab } = useQuickAddStore();
@@ -203,9 +204,13 @@ export function QuickAddModal() {
       .filter((t) => t.length > 0);
   };
 
+  useModalKeybinds(isOpen, () => {
+    handleSubmit();
+  });
+
   // Handle Form Submit
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setSubmitting(true);
 
     try {

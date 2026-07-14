@@ -2,7 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { ShortcutsHelpModal } from "@/components/ShortcutsHelpModal";
 import { 
   Search, Bell, Settings, Menu, Plus, Calendar,
   Home, Layers, FileText, Users, Archive, BookOpen, 
@@ -41,8 +43,10 @@ interface SidebarContextConfig {
 
 export function AppLayoutClient({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [searchOpen, setSearchOpen] = React.useState(false);
+  const [shortcutsHelpOpen, setShortcutsHelpOpen] = React.useState(false);
   const utils = api.useUtils();
 
   // Fetch authenticated user profile
@@ -270,25 +274,80 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      const activeEl = document.activeElement;
+      const isInput =
+        activeEl &&
+        (activeEl.tagName === 'INPUT' ||
+          activeEl.tagName === 'TEXTAREA' ||
+          activeEl.hasAttribute('contenteditable'));
+
+      if (isInput) return;
+
       // 2. Toggle Search on '/' key press
       if (e.key === '/') {
-        const activeEl = document.activeElement;
-        if (
-          activeEl &&
-          (activeEl.tagName === 'INPUT' ||
-            activeEl.tagName === 'TEXTAREA' ||
-            activeEl.hasAttribute('contenteditable'))
-        ) {
+        e.preventDefault();
+        setSearchOpen((prev) => !prev);
+        return;
+      }
+
+      // 3. Toggle Shortcuts Help Modal on '?' key press
+      if (e.key === '?') {
+        e.preventDefault();
+        setShortcutsHelpOpen((prev) => !prev);
+        return;
+      }
+
+      // 4. Global Action & Navigation Shortcuts
+      if (e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        const key = e.key.toLowerCase();
+
+        // Theme Toggle: Shift + T
+        if (key === 't') {
+          e.preventDefault();
+          const currentTheme = useThemeStore.getState().theme;
+          const nextTheme = currentTheme === 'dark' ? 'default' : 'dark';
+          useThemeStore.getState().setTheme(nextTheme);
+          toast.success(`Theme switched to ${nextTheme === 'dark' ? 'Dark' : 'Light'} Mode`);
           return;
         }
 
-        e.preventDefault();
-        setSearchOpen((prev) => !prev);
+        // Routing: Shift + D, W, L, C
+        if (key === 'd') {
+          e.preventDefault();
+          router.push("/dashboard");
+          return;
+        }
+        if (key === 'w') {
+          e.preventDefault();
+          router.push("/desk");
+          return;
+        }
+        if (key === 'l') {
+          e.preventDefault();
+          router.push("/library");
+          return;
+        }
+        if (key === 'c') {
+          e.preventDefault();
+          router.push("/feed");
+          return;
+        }
+
+        // Sidebar link indices: Shift + [1-9]
+        const match = e.code.match(/^Digit([1-9])$/);
+        if (match) {
+          const index = parseInt(match[1], 10) - 1;
+          if (index >= 0 && index < activeConfig.links.length) {
+            e.preventDefault();
+            router.push(activeConfig.links[index].href);
+            return;
+          }
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [openQuickAdd]);
+  }, [openQuickAdd, activeConfig.links, router]);
 
   // Check top link active states
   const isTopLinkActive = (pathPrefix: string) => {
@@ -503,6 +562,7 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
             <UserProfilePopover
               fullName={me?.fullName}
               avatarUrl={me?.avatarUrl}
+              onOpenShortcuts={() => setShortcutsHelpOpen(true)}
             />
           )}
         </div>
@@ -530,6 +590,7 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
           
           <QuickAddModal />
           <GlobalSearch isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
+          <ShortcutsHelpModal isOpen={shortcutsHelpOpen} onClose={() => setShortcutsHelpOpen(false)} />
           <IOSOnboardingBanner />
         </main>
       </div>

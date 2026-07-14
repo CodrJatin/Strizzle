@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LogOut, User, ChevronRight, Palette } from "lucide-react";
+import { LogOut, User, ChevronRight, Palette, Keyboard } from "lucide-react";
 import { toast } from "sonner";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -14,9 +14,10 @@ import { useThemeStore } from "@/store/themeStore";
 interface UserProfilePopoverProps {
   fullName?: string | null;
   avatarUrl?: string | null;
+  onOpenShortcuts?: () => void;
 }
 
-export function UserProfilePopover({ fullName, avatarUrl }: UserProfilePopoverProps) {
+export function UserProfilePopover({ fullName, avatarUrl, onOpenShortcuts }: UserProfilePopoverProps) {
   const router = useRouter();
   const supabase = createClient();
   const [isLoggingOut, setIsLoggingOut] = React.useState(false);
@@ -144,6 +145,22 @@ export function UserProfilePopover({ fullName, avatarUrl }: UserProfilePopoverPr
             </div>
             <ChevronRight className="size-3.5 text-muted-foreground/60 group-hover:text-muted-foreground transition-colors" />
           </Link>
+
+          <button
+            onClick={() => {
+              setOpen(false);
+              onOpenShortcuts?.();
+            }}
+            className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-foreground hover:bg-muted/60 transition-colors group text-left cursor-pointer"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="size-7 rounded-lg bg-muted/80 flex items-center justify-center shrink-0 group-hover:bg-muted transition-colors">
+                <Keyboard className="size-3.5 text-muted-foreground" />
+              </div>
+              <span className="text-xs font-semibold">Keyboard Shortcuts</span>
+            </div>
+            <ChevronRight className="size-3.5 text-muted-foreground/60 group-hover:text-muted-foreground transition-colors" />
+          </button>
         </div>
 
         {/* Divider + Logout */}

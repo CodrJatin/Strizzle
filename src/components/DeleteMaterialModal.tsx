@@ -5,6 +5,7 @@ import { AlertTriangle, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
+import { useModalKeybinds } from "@/hooks/useModalKeybinds";
 
 import { 
   Dialog, 
@@ -94,6 +95,10 @@ export function DeleteMaterialModal({ item, isOpen, onClose, queryFilter }: Dele
     onSettled: () => {
       utils.library.getLibraryMaterials.invalidate(qFilter);
     }
+  });
+
+  useModalKeybinds(isOpen, () => {
+    handleDeleteSubmit();
   });
 
   const handleDeleteSubmit = async () => {

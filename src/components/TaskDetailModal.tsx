@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { useConfirmStore } from "@/store/confirmStore";
 import { getQueryKey } from "@trpc/react-query";
 import { useQueryClient } from "@tanstack/react-query";
+import { useModalKeybinds } from "@/hooks/useModalKeybinds";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -269,6 +270,11 @@ export function TaskDetailModal({
       assigneeId,
     });
   };
+
+  useModalKeybinds(isOpen, () => {
+    handleSave();
+    onClose();
+  });
 
   const handleDelete = async () => {
     if (!taskId) return;

@@ -5,9 +5,14 @@ import { useConfirmStore } from "@/store/confirmStore";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Info } from "lucide-react";
+import { useModalKeybinds } from "@/hooks/useModalKeybinds";
 
 export function ConfirmModal() {
   const { isOpen, options, onConfirm, onCancel } = useConfirmStore();
+
+  useModalKeybinds(isOpen, () => {
+    if (onConfirm) onConfirm();
+  });
 
   if (!options) return null;
 

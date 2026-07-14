@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import type { ShelfItem } from "@/components/ShelfItemCard";
 import { api } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
+import { useModalKeybinds } from "@/hooks/useModalKeybinds";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -226,8 +227,12 @@ export function DeskActionModal({ item, isOpen, onClose }: DeskActionModalProps)
       .filter((t) => t.length > 0);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  useModalKeybinds(isOpen, () => {
+    handleSubmit();
+  });
+
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     onClose();
 
     // Optimistically update the desk shelf cache immediately

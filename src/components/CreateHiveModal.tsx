@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { api } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
+import { useModalKeybinds } from "@/hooks/useModalKeybinds";
 
 interface CreateHiveModalProps {
   isOpen: boolean;
@@ -86,8 +87,12 @@ export function CreateHiveModal({ isOpen, onClose }: CreateHiveModalProps) {
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  useModalKeybinds(isOpen, () => {
+    handleSubmit();
+  });
+
+  const handleSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!name.trim()) {
       toast.error("Hive name is required.");
       return;
