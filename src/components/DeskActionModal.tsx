@@ -10,6 +10,7 @@ import type { ShelfItem } from "@/components/ShelfItemCard";
 import { api } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import { useModalKeybinds } from "@/hooks/useModalKeybinds";
+import { DropdownSelect } from "@/components/DropdownSelect";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -102,6 +103,23 @@ export function DeskActionModal({ item, isOpen, onClose }: DeskActionModalProps)
   );
 
   const folders = foldersData?.items || [];
+
+  const hiveOptions = React.useMemo(() => {
+    return allowedHives.map((h) => ({
+      value: h.id,
+      label: `${h.name}${h.courseCode ? ` (${h.courseCode})` : ""}`,
+    }));
+  }, [allowedHives]);
+
+  const folderOptions = React.useMemo(() => {
+    return [
+      { value: "", label: "Root / No Folder" },
+      ...folders.map((f) => ({
+        value: f.id,
+        label: f.name,
+      })),
+    ];
+  }, [folders]);
 
   // Reset folder selection when hive changes
   React.useEffect(() => {
@@ -490,17 +508,12 @@ export function DeskActionModal({ item, isOpen, onClose }: DeskActionModalProps)
                         You are not a member of any study hives yet. You must join or create a hive first.
                       </div>
                     ) : (
-                      <select
+                      <DropdownSelect
                         value={selectedHive}
-                        onChange={(e) => setSelectedHive(e.target.value)}
-                        className="w-full bg-background border border-input rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-primary focus:outline-none"
-                      >
-                        {allowedHives.map((h) => (
-                          <option key={h.id} value={h.id}>
-                            {h.name} {h.courseCode ? `(${h.courseCode})` : ""}
-                          </option>
-                        ))}
-                      </select>
+                        onValueChange={setSelectedHive}
+                        options={hiveOptions}
+                        className="w-full"
+                      />
                     )}
                   </div>
 
@@ -513,18 +526,12 @@ export function DeskActionModal({ item, isOpen, onClose }: DeskActionModalProps)
                           <span>Loading folders...</span>
                         </div>
                       ) : (
-                        <select
+                        <DropdownSelect
                           value={selectedFolder}
-                          onChange={(e) => setSelectedFolder(e.target.value)}
-                          className="w-full bg-background border border-input rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-primary focus:outline-none"
-                        >
-                          <option value="">Root / No Folder</option>
-                          {folders.map((f) => (
-                            <option key={f.id} value={f.id}>
-                              {f.name}
-                            </option>
-                          ))}
-                        </select>
+                          onValueChange={setSelectedFolder}
+                          options={folderOptions}
+                          className="w-full"
+                        />
                       )}
                     </div>
                   )}
@@ -546,17 +553,12 @@ export function DeskActionModal({ item, isOpen, onClose }: DeskActionModalProps)
                         You must be an admin or owner of a study hive to post announcements.
                       </div>
                     ) : (
-                      <select
+                      <DropdownSelect
                         value={selectedHive}
-                        onChange={(e) => setSelectedHive(e.target.value)}
-                        className="w-full bg-background border border-input rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-primary focus:outline-none"
-                      >
-                        {allowedHives.map((h) => (
-                          <option key={h.id} value={h.id}>
-                            {h.name} {h.courseCode ? `(${h.courseCode})` : ""}
-                          </option>
-                        ))}
-                      </select>
+                        onValueChange={setSelectedHive}
+                        options={hiveOptions}
+                        className="w-full"
+                      />
                     )}
                   </div>
 

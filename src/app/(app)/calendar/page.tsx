@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { DropdownSelect } from "@/components/DropdownSelect";
 
 // Custom theme mapping
 const themeStyles: Record<string, { bg: string; text: string; border: string; accent: string }> = {
@@ -171,6 +172,23 @@ function CalendarPageContent({ defaultView }: CalendarPageProps) {
   const { data: hivesData = [] } = api.hive.getUserHives.useQuery(undefined, {
     staleTime: 120000, // Standard hives list: 2 minutes
   });
+
+  const priorityOptions = [
+    { value: "low", label: "Low" },
+    { value: "medium", label: "Medium" },
+    { value: "high", label: "High" },
+    { value: "urgent", label: "Urgent" },
+  ];
+
+  const hiveOptions = React.useMemo(() => {
+    return [
+      { value: "personal", label: "Personal (no hive)" },
+      ...hivesData.map((h) => ({
+        value: h.id,
+        label: h.courseCode || h.name,
+      })),
+    ];
+  }, [hivesData]);
 
   // Mutations
   const updateTaskMutation = api.task.updateTask.useMutation({
@@ -709,32 +727,22 @@ function CalendarPageContent({ defaultView }: CalendarPageProps) {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Priority</label>
-                  <select
+                  <DropdownSelect
                     value={newTaskPriority}
-                    onChange={(e) => setNewTaskPriority(e.target.value as any)}
-                    className="w-full h-9 bg-card border border-border rounded-lg text-xs px-2 focus:outline-none focus:ring-1 focus:ring-primary"
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                    <option value="urgent">Urgent</option>
-                  </select>
+                    onValueChange={(val) => setNewTaskPriority(val as any)}
+                    options={priorityOptions}
+                    className="w-full h-9 rounded-lg"
+                  />
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Associate with Hive</label>
-                  <select
+                  <DropdownSelect
                     value={newTaskHiveId}
-                    onChange={(e) => setNewTaskHiveId(e.target.value)}
-                    className="w-full h-9 bg-card border border-border rounded-lg text-xs px-2 focus:outline-none focus:ring-1 focus:ring-primary"
-                  >
-                    <option value="personal">Personal (no hive)</option>
-                    {hivesData.map((h) => (
-                      <option key={h.id} value={h.id}>
-                        {h.courseCode || h.name}
-                      </option>
-                    ))}
-                  </select>
+                    onValueChange={setNewTaskHiveId}
+                    options={hiveOptions}
+                    className="w-full h-9 rounded-lg"
+                  />
                 </div>
               </div>
 

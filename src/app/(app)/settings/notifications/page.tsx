@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import { useNotificationPermission } from "@/hooks/useNotificationPermission";
+import { DropdownSelect } from "@/components/DropdownSelect";
 
 type NotificationLevel = "all" | "mentions" | "muted" | "highlights";
 
@@ -26,6 +27,13 @@ export default function NotificationsSettingsPage() {
   } = useNotificationPermission();
 
   const [hiveSettings, setHiveSettings] = React.useState<Record<string, NotificationLevel>>({});
+
+  const notificationOptions = [
+    { value: "all", label: "All Activity" },
+    { value: "mentions", label: "Mentions Only" },
+    { value: "highlights", label: "Highlights" },
+    { value: "muted", label: "Muted" },
+  ];
 
   // Initialize hive settings
   React.useEffect(() => {
@@ -161,23 +169,13 @@ export default function NotificationsSettingsPage() {
                     </div>
                   </div>
 
-                  <div className="relative">
-                    <select
+                  <div>
+                    <DropdownSelect
                       value={currentVal}
-                      onChange={(e) => handleHiveSettingChange(hive.id, e.target.value as NotificationLevel)}
-                      className="appearance-none bg-card hover:bg-muted/30 border border-border rounded-xl px-4 pr-8 py-1.5 text-xs font-semibold text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary shadow-sm min-w-[120px]"
-                    >
-                      <option value="all">All Activity</option>
-                      <option value="mentions">Mentions Only</option>
-                      <option value="highlights">Highlights</option>
-                      <option value="muted">Muted</option>
-                    </select>
-                    {/* custom select chevron */}
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                      <svg className="size-3 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
+                      onValueChange={(val) => handleHiveSettingChange(hive.id, val as NotificationLevel)}
+                      options={notificationOptions}
+                      className="min-w-[140px]"
+                    />
                   </div>
                 </div>
               );

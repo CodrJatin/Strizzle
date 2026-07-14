@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { api } from "@/lib/trpc/client";
 import { useQuickAddStore } from "@/store/quickAddStore";
 import { LibraryMaterialCard, type LibraryItem } from "@/components/LibraryMaterialCard";
+import { DropdownSelect } from "@/components/DropdownSelect";
 import { DeleteMaterialModal } from "@/components/DeleteMaterialModal";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -54,6 +55,11 @@ export default function LibraryPage() {
 
   // Expanded/collapsed hives state mapping
   const [expandedHives, setExpandedHives] = React.useState<Record<string, boolean>>({});
+
+  const sortOptions = [
+    { value: "addedAt", label: "Date Added" },
+    { value: "title", label: "Title / Name" },
+  ];
 
   const toggleHiveExpand = (hiveId: string) => {
     setExpandedHives((prev) => ({
@@ -239,14 +245,12 @@ export default function LibraryPage() {
           <div className="flex items-center gap-2.5 shrink-0 self-end md:self-auto w-full md:w-auto justify-end">
             {/* Sort Select */}
             <div className="flex items-center gap-1">
-              <select
+              <DropdownSelect
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
-                className="bg-background border border-input rounded-xl px-3 py-2 text-xs font-semibold h-10 focus:ring-1 focus:ring-primary focus:outline-none cursor-pointer"
-              >
-                <option value="addedAt">Date Added</option>
-                <option value="title">Title / Name</option>
-              </select>
+                onValueChange={(val) => setSortBy(val as any)}
+                options={sortOptions}
+                className="h-10 w-32 bg-background border border-input rounded-xl text-xs font-semibold"
+              />
               
               <Button
                 variant="outline"

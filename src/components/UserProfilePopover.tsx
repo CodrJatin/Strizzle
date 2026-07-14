@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LogOut, User, ChevronRight, Palette, Keyboard } from "lucide-react";
 import { toast } from "sonner";
+import { DropdownSelect } from "@/components/DropdownSelect";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -23,6 +24,15 @@ export function UserProfilePopover({ fullName, avatarUrl, onOpenShortcuts }: Use
   const [isLoggingOut, setIsLoggingOut] = React.useState(false);
   const [open, setOpen] = React.useState(false);
   const [email, setEmail] = React.useState<string | null>(null);
+
+  const themeOptions = [
+    { value: "system", label: "System" },
+    { value: "default", label: "Light" },
+    { value: "dark", label: "Dark" },
+    { value: "ocean", label: "Ocean" },
+    { value: "forest", label: "Forest" },
+    { value: "sunset", label: "Sunset" },
+  ];
 
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
@@ -111,24 +121,13 @@ export function UserProfilePopover({ fullName, avatarUrl, onOpenShortcuts }: Use
             <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
               <Palette className="size-3 text-primary" /> Color Theme
             </span>
-            <div className="relative mt-1">
-              <select
+            <div className="mt-1">
+              <DropdownSelect
                 value={theme}
-                onChange={(e) => handleThemeChange(e.target.value)}
-                className="w-full appearance-none bg-muted/50 hover:bg-muted border border-border rounded-xl px-3 py-1.5 text-xs font-semibold text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary shadow-sm pr-8"
-              >
-                <option value="system">System</option>
-                <option value="default">Light</option>
-                <option value="dark">Dark</option>
-                <option value="ocean">Ocean</option>
-                <option value="forest">Forest</option>
-                <option value="sunset">Sunset</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                <svg className="size-3 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
+                onValueChange={handleThemeChange}
+                options={themeOptions}
+                className="w-full"
+              />
             </div>
           </div>
 

@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownSelect } from "@/components/DropdownSelect";
 import { GlobalSearch } from "@/components/GlobalSearch";
 
 interface TaskDetailModalProps {
@@ -216,6 +216,30 @@ export function TaskDetailModal({
   const [priority, setPriority] = React.useState<"low" | "medium" | "high" | "urgent">("medium");
   const [dueAt, setDueAt] = React.useState("");
   const [assigneeId, setAssigneeId] = React.useState<string | null>(null);
+
+  const statusOptions = [
+    { value: "todo", label: "Todo" },
+    { value: "in_progress", label: "In Progress" },
+    { value: "blocked", label: "Blocked" },
+    { value: "done", label: "Completed" },
+  ];
+
+  const priorityOptions = [
+    { value: "low", label: "Low" },
+    { value: "medium", label: "Medium" },
+    { value: "high", label: "High" },
+    { value: "urgent", label: "Urgent" },
+  ];
+
+  const assigneeOptions = React.useMemo(() => {
+    return [
+      { value: "unassigned", label: "Unassigned" },
+      ...(members || []).map((m) => ({
+        value: m.userId,
+        label: m.user.fullName,
+      })),
+    ];
+  }, [members]);
 
   // Sync state when task loads
   React.useEffect(() => {
@@ -429,39 +453,23 @@ export function TaskDetailModal({
                 {/* Status Selection */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Status</label>
-                  <Select 
-                    value={status} 
-                    onValueChange={(val: any) => setStatus(val)}
-                  >
-                    <SelectTrigger className="w-full h-9 justify-between bg-background">
-                      <SelectValue placeholder="Select Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="todo">Todo</SelectItem>
-                      <SelectItem value="in_progress">In Progress</SelectItem>
-                      <SelectItem value="blocked">Blocked</SelectItem>
-                      <SelectItem value="done">Completed</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <DropdownSelect
+                    value={status}
+                    onValueChange={(val) => setStatus(val as any)}
+                    options={statusOptions}
+                    className="w-full h-9 bg-background"
+                  />
                 </div>
 
                 {/* Priority Selection */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Priority</label>
-                  <Select 
-                    value={priority} 
-                    onValueChange={(val: any) => setPriority(val)}
-                  >
-                    <SelectTrigger className="w-full h-9 justify-between bg-background">
-                      <SelectValue placeholder="Select Priority" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="low">Low</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="high">High</SelectItem>
-                      <SelectItem value="urgent">Urgent</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <DropdownSelect
+                    value={priority}
+                    onValueChange={(val) => setPriority(val as any)}
+                    options={priorityOptions}
+                    className="w-full h-9 bg-background"
+                  />
                 </div>
 
                 {/* Assignee Selection (Hive Member only) */}
@@ -471,25 +479,15 @@ export function TaskDetailModal({
                       <User className="size-3.5 text-muted-foreground" />
                       <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Assignee</label>
                     </div>
-                    <Select 
-                      value={assigneeId || "unassigned"} 
+                    <DropdownSelect
+                      value={assigneeId || "unassigned"}
                       onValueChange={(val) => {
                         const newAssigneeId = val === "unassigned" ? null : val;
                         setAssigneeId(newAssigneeId);
                       }}
-                    >
-                      <SelectTrigger className="w-full h-9 justify-between bg-background">
-                        <SelectValue placeholder="Unassigned" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="unassigned">Unassigned</SelectItem>
-                        {members?.map((m) => (
-                          <SelectItem key={m.userId} value={m.userId}>
-                            {m.user.fullName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      options={assigneeOptions}
+                      className="w-full h-9 bg-background"
+                    />
                   </div>
                 )}
 
