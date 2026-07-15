@@ -7,8 +7,10 @@ import {
   FileText, AlertCircle, ChevronDown, ChevronRight,
   ExternalLink, Download, Share2, LayoutGrid, List,
   Filter, Search, Check, X, File, Link, CheckCircle2,
-  Calendar, Eye
+  Calendar, Eye, MoreVertical
 } from "lucide-react";
+import { EditMaterialModal } from "@/components/EditMaterialModal";
+import { formatDuration } from "@/lib/youtube";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -56,6 +58,9 @@ export default function MaterialsPage({ params }: PageProps) {
   const router = useRouter();
   const utils = api.useUtils();
   const confirm = useConfirmStore((s) => s.confirm);
+
+  const { data: user } = api.user.getMe.useQuery(undefined, { staleTime: 900000 });
+  const [editMaterial, setEditMaterial] = React.useState<any | null>(null);
 
   // Queries
   const { data: hive, isLoading: isLoadingHive } = api.hive.getHive.useQuery(
@@ -987,6 +992,11 @@ export default function MaterialsPage({ params }: PageProps) {
                     <span className="absolute top-3 right-3 text-[10px] font-bold uppercase tracking-wider text-white bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded-lg">
                       {isWeb ? "Web" : isPdf ? "PDF" : isVideo ? "Video" : isDocx ? "DOCX" : m.contentType}
                     </span>
+                    {m.ytDuration !== null && m.ytDuration !== undefined && m.ytDuration > 0 && (
+                      <span className="absolute bottom-3 right-3 text-[10px] font-bold text-white bg-black/75 backdrop-blur-sm px-2 py-0.5 rounded-lg font-mono">
+                        {formatDuration(m.ytDuration)}
+                      </span>
+                    )}
                   </div>
 
                   {/* Card Content */}
@@ -1063,6 +1073,19 @@ export default function MaterialsPage({ params }: PageProps) {
                           Download
                         </Button>
                       ) : null}
+
+                      {/* Edit Details Action (if owner) */}
+                      {user && m.ownerId === user.id && (
+                        <Button 
+                          onClick={(e) => { e.stopPropagation(); setEditMaterial(m); }}
+                          variant="outline" 
+                          size="sm" 
+                          className="h-8 text-xs font-semibold rounded-lg bg-card border-border hover:bg-muted"
+                        >
+                          <Edit3 className="size-3.5 mr-1.5" />
+                          Edit Details
+                        </Button>
+                      )}
 
                       {/* Delete (Unshare) Action for Owner / Admin / Sharer */}
                       {(isOwnerOrAdmin || isSharer) && (
@@ -1156,6 +1179,19 @@ export default function MaterialsPage({ params }: PageProps) {
                       </Button>
                     ) : null}
 
+                    {/* Edit Details Action for owner */}
+                    {user && m.ownerId === user.id && (
+                      <Button 
+                        onClick={(e) => { e.stopPropagation(); setEditMaterial(m); }}
+                        variant="ghost" 
+                        size="icon" 
+                        className="size-8 text-muted-foreground hover:text-foreground rounded-lg"
+                        title="Edit Details"
+                      >
+                        <Edit3 className="size-4" />
+                      </Button>
+                    )}
+
                     {(isOwnerOrAdmin || isSharer) && (
                       <Button 
                         onClick={(e) => { e.stopPropagation(); handleUnshare(item.id); }}
@@ -1174,6 +1210,23 @@ export default function MaterialsPage({ params }: PageProps) {
           </div>
         )}
       </div>
+
+      {editMaterial && (
+        <EditMaterialModal
+          material={{
+            id: editMaterial.id,
+            title: editMaterial.title,
+            tags: editMaterial.tags,
+            contentType: editMaterial.contentType,
+            ytPlaylistId: editMaterial.ytPlaylistId,
+            ytVideoRange: editMaterial.ytVideoRange,
+          }}
+          isOpen={!!editMaterial}
+          onClose={() => setEditMaterial(null)}
+          hiveId={hiveId}
+          queryFilter={{ hiveId, folderId: selectedFolderId, limit: 50 }}
+        />
+      )}
 
       {/* DIALOGS */}
 

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { 
   ArrowLeft, Star, Download, ExternalLink, Share2, 
   Loader2, AlertCircle, Calendar, FileText, CheckCircle2,
-  Tag, Info
+  Tag, Info, Eye, Play, Pause
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -16,10 +16,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { formatDuration } from "@/lib/youtube";
 
 interface PageProps {
   params: Promise<{ materialId: string }>;
 }
+
+// Allowed YouTube speed levels
+const SPEED_LEVELS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 
 // Utility to extract YouTube Video ID and return embed URL
 function getYoutubeEmbedUrl(url: string | null): string | null {
@@ -65,7 +69,221 @@ export default function MaterialPreviewPage({ params }: PageProps) {
     { staleTime: 120000 } // Standard materials details: 2 minutes
   );
 
-  // Queries/Mutations Filters (Standard query filter used in library update calls)
+  const isPlaylist = material?.ytPlaylistId !== null && material?.contentType === "youtube";
+
+  // Fetch playlist videos if applicable
+  const { data: playlistVideos } = api.material.getPlaylistVideos.useQuery(
+    { materialId },
+    { enabled: !!material && isPlaylist, staleTime: 120000 }
+  );
+
+  // Video player states
+  const [activeVideoId, setActiveVideoId] = React.useState<string | null>(null);
+  const [playbackRate, setPlaybackRate] = React.useState(1.0);
+  const [playerReady, setPlayerReady] = React.useState(false);
+  const [isPlaying, setIsPlaying] = React.useState(false);
+
+  const playerRef = React.useRef<any>(null);
+  const nextVideoRef = React.useRef<() => void>(() => {});
+  const prevVideoRef = React.useRef<() => void>(() => {});
+
+  // Set default active video
+  React.useEffect(() => {
+    if (isPlaylist && playlistVideos && playlistVideos.length > 0) {
+      if (!activeVideoId) {
+        setActiveVideoId(playlistVideos[0].videoId);
+      }
+    } else if (material && material.contentType === "youtube" && !material.ytPlaylistId) {
+      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+      const match = material.url?.match(regExp);
+      if (match && match[2].length === 11) {
+        setActiveVideoId(match[2]);
+      }
+    }
+  }, [playlistVideos, material, isPlaylist, activeVideoId]);
+
+  // Next / Prev actions
+  const handleNext = React.useCallback(() => {
+    if (isPlaylist && playlistVideos && playlistVideos.length > 0) {
+      const currentIndex = playlistVideos.findIndex(v => v.videoId === activeVideoId);
+      if (currentIndex !== -1 && currentIndex < playlistVideos.length - 1) {
+        setActiveVideoId(playlistVideos[currentIndex + 1].videoId);
+        toast.info(`Playing next: ${playlistVideos[currentIndex + 1].title}`);
+      } else {
+        toast.info("End of playlist");
+      }
+    }
+  }, [isPlaylist, playlistVideos, activeVideoId]);
+
+  const handlePrev = React.useCallback(() => {
+    if (isPlaylist && playlistVideos && playlistVideos.length > 0) {
+      const currentIndex = playlistVideos.findIndex(v => v.videoId === activeVideoId);
+      if (currentIndex > 0) {
+        setActiveVideoId(playlistVideos[currentIndex - 1].videoId);
+        toast.info(`Playing previous: ${playlistVideos[currentIndex - 1].title}`);
+      } else {
+        toast.info("First video in playlist");
+      }
+    }
+  }, [isPlaylist, playlistVideos, activeVideoId]);
+
+  // Keep references fresh for the iframe state change listener
+  React.useEffect(() => {
+    nextVideoRef.current = handleNext;
+    prevVideoRef.current = handlePrev;
+  }, [handleNext, handlePrev]);
+
+  // Speed controls
+  const handleDecreaseSpeed = React.useCallback(() => {
+    const currentIndex = SPEED_LEVELS.indexOf(playbackRate);
+    if (currentIndex > 0) {
+      const newRate = SPEED_LEVELS[currentIndex - 1];
+      setPlaybackRate(newRate);
+      if (playerRef.current && typeof playerRef.current.setPlaybackRate === 'function') {
+        playerRef.current.setPlaybackRate(newRate);
+      }
+      toast.success(`Speed: ${newRate}x`);
+    }
+  }, [playbackRate]);
+
+  const handleIncreaseSpeed = React.useCallback(() => {
+    const currentIndex = SPEED_LEVELS.indexOf(playbackRate);
+    if (currentIndex < SPEED_LEVELS.length - 1) {
+      const newRate = SPEED_LEVELS[currentIndex + 1];
+      setPlaybackRate(newRate);
+      if (playerRef.current && typeof playerRef.current.setPlaybackRate === 'function') {
+        playerRef.current.setPlaybackRate(newRate);
+      }
+      toast.success(`Speed: ${newRate}x`);
+    }
+  }, [playbackRate]);
+
+  // Instantiate YouTube Iframe API Player
+  React.useEffect(() => {
+    if (!activeVideoId) return;
+
+    let active = true;
+    let player: any = null;
+
+    function initPlayer() {
+      if (!active) return;
+      
+      const container = document.getElementById("yt-player");
+      if (!container) return;
+
+      player = new window.YT.Player("yt-player", {
+        height: "100%",
+        width: "100%",
+        videoId: activeVideoId,
+        playerVars: {
+          autoplay: 1,
+          rel: 0,
+          modestbranding: 1,
+        },
+        events: {
+          onReady: (event: any) => {
+            if (active) {
+              setPlayerReady(true);
+              event.target.setPlaybackRate(playbackRate);
+              try {
+                event.target.playVideo();
+              } catch (e) {}
+            }
+          },
+          onStateChange: (event: any) => {
+            if (active) {
+              if (event.data === window.YT.PlayerState.PLAYING) {
+                setIsPlaying(true);
+              } else if (event.data === window.YT.PlayerState.PAUSED || event.data === window.YT.PlayerState.BUFFERING) {
+                setIsPlaying(false);
+              } else if (event.data === window.YT.PlayerState.ENDED) {
+                setIsPlaying(false);
+                nextVideoRef.current();
+              }
+            }
+          },
+        },
+      });
+      playerRef.current = player;
+    }
+
+    if (!window.YT) {
+      let tag = document.querySelector('script[src="https://www.youtube.com/iframe_api"]');
+      if (!tag) {
+        tag = document.createElement("script");
+        (tag as HTMLScriptElement).src = "https://www.youtube.com/iframe_api";
+        const firstScriptTag = document.getElementsByTagName("script")[0];
+        firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+      }
+
+      const prevAPIReady = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => {
+        if (prevAPIReady) prevAPIReady();
+        initPlayer();
+      };
+    } else {
+      initPlayer();
+    }
+
+    return () => {
+      active = false;
+      setPlayerReady(false);
+      setIsPlaying(false);
+      if (player && typeof player.destroy === "function") {
+        try {
+          player.destroy();
+        } catch (e) {
+          console.error("Error destroying YT player:", e);
+        }
+      }
+      playerRef.current = null;
+    };
+  }, [activeVideoId]);
+
+  // Keyboard shortcuts event listener
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore shortcuts if in inputs
+      if (
+        document.activeElement?.tagName === "INPUT" ||
+        document.activeElement?.tagName === "TEXTAREA" ||
+        document.activeElement?.getAttribute("contenteditable") === "true"
+      ) {
+        return;
+      }
+
+      if (e.key === " " || e.code === "Space") {
+        e.preventDefault();
+        if (playerRef.current && typeof playerRef.current.getPlayerState === "function") {
+          const state = playerRef.current.getPlayerState();
+          if (state === 1) {
+            playerRef.current.pauseVideo();
+          } else {
+            playerRef.current.playVideo();
+          }
+        }
+      } else if (e.key === "n" || e.key === "N") {
+        e.preventDefault();
+        nextVideoRef.current();
+      } else if (e.key === "p" || e.key === "P") {
+        e.preventDefault();
+        prevVideoRef.current();
+      } else if (e.key === ">" || (e.shiftKey && e.key === ".")) {
+        e.preventDefault();
+        handleIncreaseSpeed();
+      } else if (e.key === "<" || (e.shiftKey && e.key === ",")) {
+        e.preventDefault();
+        handleDecreaseSpeed();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [handleIncreaseSpeed, handleDecreaseSpeed]);
+
+  // Queries/Mutations Filters
   const qFilter = { limit: 18 };
 
   // Mutations
@@ -200,7 +418,7 @@ export default function MaterialPreviewPage({ params }: PageProps) {
   }
 
   // File/Resource parameters
-  const isYoutube = material.contentType === "youtube" || !!getYoutubeEmbedUrl(material.url);
+  const isYoutube = material.contentType === "youtube";
   const isGoogleDrive = !!getGoogleDriveEmbedUrl(material.url);
   const isPdf = material.mimeType === "application/pdf" || material.fileName?.endsWith(".pdf");
   
@@ -208,14 +426,14 @@ export default function MaterialPreviewPage({ params }: PageProps) {
     ? supabase.storage.from("materials").getPublicUrl(material.storagePath).data.publicUrl
     : null;
 
-  // Determine Embed Target
+  // Determine Embed Target for non-YouTube resources
   let embedUrl: string | null = null;
-  if (isYoutube) {
-    embedUrl = getYoutubeEmbedUrl(material.url || material.body);
-  } else if (isGoogleDrive) {
-    embedUrl = getGoogleDriveEmbedUrl(material.url);
-  } else if (isPdf && fileUrl) {
-    embedUrl = fileUrl;
+  if (!isYoutube) {
+    if (isGoogleDrive) {
+      embedUrl = getGoogleDriveEmbedUrl(material.url);
+    } else if (isPdf && fileUrl) {
+      embedUrl = fileUrl;
+    }
   }
 
   const handleStarToggle = () => {
@@ -259,6 +477,9 @@ export default function MaterialPreviewPage({ params }: PageProps) {
             </h1>
             <div className="flex flex-wrap items-center gap-2 mt-1 text-[11px] text-muted-foreground">
               <span className="capitalize">{material.contentType}</span>
+              {material.ytDuration !== null && material.ytDuration !== undefined && material.ytDuration > 0 && (
+                <span>• Duration: {formatDuration(material.ytDuration)}</span>
+              )}
               {material.ogDomain && <span>• {material.ogDomain}</span>}
               {material.fileSize && <span>• {formatBytes(material.fileSize)}</span>}
               {material.tags && material.tags.length > 0 && (
@@ -345,28 +566,104 @@ export default function MaterialPreviewPage({ params }: PageProps) {
       {/* Main Grid View */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Side: Dynamic Preview Content */}
-        <div className="lg:col-span-2">
-          {embedUrl ? (
-            <div className="relative w-full overflow-hidden rounded-2xl border border-border/60 bg-muted/20 shadow-md">
-              {isYoutube ? (
-                <div className="aspect-video w-full">
-                  <iframe
-                    src={embedUrl}
-                    title={material.title || "YouTube Video"}
-                    frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    allowFullScreen
-                    className="w-full h-full"
-                  />
+        <div className="lg:col-span-2 space-y-4">
+          {isYoutube ? (
+            <div className="space-y-4">
+              <div className="relative w-full aspect-video overflow-hidden rounded-2xl border border-border/60 bg-black shadow-md">
+                <div id="yt-player" className="w-full h-full" />
+                {!playerReady && (
+                  <div className="absolute inset-0 bg-muted/20 flex items-center justify-center">
+                    <Loader2 className="size-8 animate-spin text-primary" />
+                  </div>
+                )}
+              </div>
+
+              {/* Player Custom Controls */}
+              <div className="flex flex-wrap items-center justify-between gap-4 bg-muted/15 border border-border/50 rounded-2xl p-4">
+                <div className="flex items-center gap-3">
+                  {/* Prev / Next buttons for playlist */}
+                  {isPlaylist && playlistVideos && playlistVideos.length > 0 && (
+                    <div className="flex items-center bg-muted/40 p-0.5 rounded-lg border border-border/40 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handlePrev}
+                        className="h-8 text-xs font-semibold rounded-md"
+                        disabled={playlistVideos.findIndex(v => v.videoId === activeVideoId) <= 0}
+                      >
+                        Previous
+                      </Button>
+                      <div className="h-4 w-px bg-border/60 mx-1" />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleNext}
+                        className="h-8 text-xs font-semibold rounded-md"
+                        disabled={playlistVideos.findIndex(v => v.videoId === activeVideoId) >= playlistVideos.length - 1}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Playback speed stepper: < 1.00x > */}
+                  <div className="flex items-center bg-muted/40 p-0.5 rounded-lg border border-border/40 shrink-0 select-none">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={handleDecreaseSpeed}
+                      className="size-8 rounded-md"
+                      disabled={SPEED_LEVELS.indexOf(playbackRate) === 0}
+                    >
+                      &lt;
+                    </Button>
+                    <span className="text-xs font-mono font-bold px-2.5 min-w-[50px] text-center">
+                      {playbackRate.toFixed(2)}x
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={handleIncreaseSpeed}
+                      className="size-8 rounded-md"
+                      disabled={SPEED_LEVELS.indexOf(playbackRate) === SPEED_LEVELS.length - 1}
+                    >
+                      &gt;
+                    </Button>
+                  </div>
                 </div>
-              ) : (
-                <iframe
-                  src={embedUrl}
-                  title={material.title || "Document Preview"}
-                  className="w-full h-[65vh] border-none"
-                  allow="autoplay"
-                />
-              )}
+
+                {/* Keyboard shortcuts guide */}
+                <div className="text-[10px] text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 font-medium bg-muted/20 px-3 py-1.5 rounded-xl border border-border/20">
+                  <span className="flex items-center gap-1">
+                    <kbd className="bg-background border border-border px-1.5 py-0.5 rounded text-[9px] shadow-xs">Space</kbd> Play/Pause
+                  </span>
+                  {isPlaylist && (
+                    <>
+                      <span className="flex items-center gap-1">
+                        <kbd className="bg-background border border-border px-1.5 py-0.5 rounded text-[9px] shadow-xs">N</kbd> Next
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <kbd className="bg-background border border-border px-1.5 py-0.5 rounded text-[9px] shadow-xs">P</kbd> Prev
+                      </span>
+                    </>
+                  )}
+                  <span className="flex items-center gap-1">
+                    <kbd className="bg-background border border-border px-1.5 py-0.5 rounded text-[9px] shadow-xs">&gt;</kbd> Faster
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <kbd className="bg-background border border-border px-1.5 py-0.5 rounded text-[9px] shadow-xs">&lt;</kbd> Slower
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : embedUrl ? (
+            <div className="relative w-full overflow-hidden rounded-2xl border border-border/60 bg-muted/20 shadow-md">
+              <iframe
+                src={embedUrl}
+                title={material.title || "Document Preview"}
+                className="w-full h-[65vh] border-none"
+                allow="autoplay"
+              />
             </div>
           ) : (
             <Card className="border-border/60 shadow-md bg-card rounded-2xl">
@@ -423,6 +720,61 @@ export default function MaterialPreviewPage({ params }: PageProps) {
 
         {/* Right Side: Metadata / Side Panel */}
         <div className="space-y-6">
+          {/* Playlist Videos List */}
+          {isPlaylist && playlistVideos && playlistVideos.length > 0 && (
+            <Card className="border-border shadow-sm bg-card rounded-2xl overflow-hidden flex flex-col max-h-[60vh]">
+              <div className="px-5 py-4 border-b border-border/40 bg-muted/15 flex justify-between items-center shrink-0">
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-foreground">Playlist Videos</h3>
+                <span className="text-[10px] font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded-full font-mono">
+                  {playlistVideos.length} Videos
+                </span>
+              </div>
+              <div className="p-2 overflow-y-auto divide-y divide-border/10 flex-1 min-h-0">
+                {playlistVideos.map((video) => {
+                  const isActive = video.videoId === activeVideoId;
+                  return (
+                    <div
+                      key={video.id}
+                      onClick={() => {
+                        setActiveVideoId(video.videoId);
+                        toast.info(`Playing: ${video.title}`);
+                      }}
+                      className={cn(
+                        "flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-all hover:bg-muted/40",
+                        isActive 
+                          ? "bg-primary/5 border border-primary/20 shadow-xs" 
+                          : "border border-transparent"
+                      )}
+                    >
+                      <div className={cn(
+                        "size-6 rounded-lg text-xs font-mono font-bold flex items-center justify-center shrink-0 border",
+                        isActive 
+                          ? "bg-primary/15 border-primary/30 text-primary" 
+                          : "bg-muted border-border/50 text-muted-foreground"
+                      )}>
+                        {video.position}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className={cn(
+                          "text-xs font-semibold leading-snug line-clamp-2",
+                          isActive ? "text-foreground font-bold" : "text-muted-foreground"
+                        )}>
+                          {video.title}
+                        </p>
+                        {video.duration > 0 && (
+                          <span className="text-[10px] font-mono text-muted-foreground/80 mt-1 block">
+                            {formatDuration(video.duration)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
+
+          {/* Standard Resource Details Card */}
           <Card className="border-border shadow-sm bg-card rounded-2xl overflow-hidden">
             <div className="px-5 py-4 border-b border-border/40 bg-muted/15">
               <h3 className="text-xs font-extrabold uppercase tracking-wider text-foreground">Resource Details</h3>
@@ -430,7 +782,9 @@ export default function MaterialPreviewPage({ params }: PageProps) {
             <CardContent className="p-5 divide-y divide-border/30 text-xs">
               <div className="py-2.5 flex justify-between gap-4">
                 <span className="text-muted-foreground">Type</span>
-                <span className="font-semibold text-foreground capitalize">{material.contentType}</span>
+                <span className="font-semibold text-foreground capitalize">
+                  {material.ytPlaylistId ? "YouTube Playlist" : material.contentType}
+                </span>
               </div>
               
               {material.fileName && (

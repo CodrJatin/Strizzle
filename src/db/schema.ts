@@ -248,6 +248,11 @@ export const materials = pgTable(
     fileSize: bigint('file_size', { mode: 'number' }),
     mimeType: text('mime_type'),
 
+    // YouTube metadata
+    ytPlaylistId: text('yt_playlist_id'),
+    ytDuration: integer('yt_duration'),
+    ytVideoRange: text('yt_video_range'),
+
     // Organisation
     tags: text('tags')
       .array()
@@ -262,6 +267,26 @@ export const materials = pgTable(
     index('idx_materials_search').using('gin', table.searchVec),
     index('idx_materials_owner').on(table.ownerId),
     index('idx_materials_storage_ref').on(table.storageRefId),
+  ]
+);
+
+export const youtubePlaylistVideos = pgTable(
+  'youtube_playlist_videos',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    materialId: uuid('material_id')
+      .notNull()
+      .references(() => materials.id, { onDelete: 'cascade' }),
+    videoId: text('video_id').notNull(),
+    title: text('title').notNull(),
+    duration: integer('duration').notNull(),
+    position: integer('position').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_yt_playlist_videos_material_id').on(table.materialId),
+    index('idx_yt_playlist_videos_position').on(table.materialId, table.position),
   ]
 );
 

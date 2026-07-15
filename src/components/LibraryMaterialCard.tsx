@@ -6,8 +6,18 @@ import { motion } from "framer-motion";
 import { 
   Star, Trash2, ExternalLink, Download, Share2, 
   HelpCircle, FileText, FileArchive, FileAudio, File, 
-  Link2, Calendar, LayoutGrid, Eye, Tag, CheckCircle2, Loader2
+  Link2, Calendar, LayoutGrid, Eye, Tag, CheckCircle2, Loader2,
+  Edit3, MoreVertical
 } from "lucide-react";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuSeparator, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
+import { EditMaterialModal } from "@/components/EditMaterialModal";
+import { formatDuration } from "@/lib/youtube";
 import { toast } from "sonner";
 import type { inferRouterOutputs } from "@trpc/server";
 
@@ -109,6 +119,9 @@ export function LibraryMaterialCard({
   const { isCached, isDownloading, downloadMaterial } = useMaterialCache();
 
   const qFilter = queryFilter || { limit: 18 };
+
+  const [editOpen, setEditOpen] = React.useState(false);
+  const [dropdownOpen, setDropdownOpen] = React.useState(false);
 
   // Optimistic Star/Unstar Mutations
   const starMutation = api.library.starMaterial.useMutation({
@@ -372,6 +385,11 @@ export function LibraryMaterialCard({
               )}>
                 {isYoutube ? "YouTube" : material.ogDomain || "Web link"}
               </div>
+              {material.ytDuration !== null && material.ytDuration !== undefined && material.ytDuration > 0 && (
+                <div className="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded-md text-[9px] font-bold shadow-xs text-white bg-black/75 backdrop-blur-xs font-mono">
+                  {formatDuration(material.ytDuration)}
+                </div>
+              )}
             </div>
             <div className="flex-1 p-4 flex flex-col justify-between">
               <div className="space-y-1.5">
@@ -461,6 +479,56 @@ export function LibraryMaterialCard({
         className="rounded-2xl border border-border/80 bg-card overflow-hidden shadow-xs hover:shadow-md transition-all duration-300 flex flex-col justify-between h-64 relative group cursor-pointer"
         onClick={handleOpen}
       >
+        {/* Three dots overlay trigger (top-right absolute) */}
+        <div className="absolute top-2.5 right-2.5 z-30">
+          <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "size-8 rounded-lg border bg-card/85 backdrop-blur-md shadow-sm transition-all focus-visible:ring-1",
+                  material.contentType === "image"
+                    ? "border-white/15 text-white hover:bg-white/15 hover:text-white"
+                    : "border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                  dropdownOpen ? "opacity-100 scale-100" : "opacity-0 group-hover:opacity-100 scale-95 hover:scale-100"
+                )}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreVertical className="size-4" />
+                <span className="sr-only">Actions</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48 p-1 rounded-xl" onClick={(e) => e.stopPropagation()}>
+              <DropdownMenuItem 
+                onSelect={(e) => {
+                  e.preventDefault();
+                  setEditOpen(true);
+                }}
+                className="flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer text-sm font-medium"
+              >
+                <Edit3 className="size-4 text-muted-foreground" />
+                <span>Edit Details</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={handleStarToggle}
+                className="flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer text-sm font-medium"
+              >
+                <Star className="size-4 text-muted-foreground" />
+                <span>{starred ? "Unstar" : "Star"}</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="my-1 border-border" />
+              <DropdownMenuItem 
+                onClick={handleDelete}
+                className="flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer text-sm font-medium text-destructive hover:bg-destructive/10 focus:bg-destructive/10 focus:text-destructive"
+              >
+                <Trash2 className="size-4 text-destructive" />
+                <span>Delete Material</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
         {/* Hover Overlay Action Menu */}
         <div className="absolute inset-0 bg-background/90 backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20 flex flex-col items-center justify-center gap-4 p-4">
           <div className="text-center space-y-1 max-w-full px-4">
@@ -562,6 +630,22 @@ export function LibraryMaterialCard({
         <div className="flex-1 h-full">
           {renderGridContent()}
         </div>
+
+        {editOpen && (
+          <EditMaterialModal
+            material={{
+              id: material.id,
+              title: material.title,
+              tags: material.tags,
+              contentType: material.contentType,
+              ytPlaylistId: material.ytPlaylistId,
+              ytVideoRange: material.ytVideoRange,
+            }}
+            isOpen={editOpen}
+            onClose={() => setEditOpen(false)}
+            queryFilter={qFilter}
+          />
+        )}
       </motion.div>
     );
   }
@@ -583,6 +667,9 @@ export function LibraryMaterialCard({
           </h4>
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[10px] text-muted-foreground mt-0.5">
             <span className="capitalize">{material.contentType}</span>
+            {material.ytDuration !== null && material.ytDuration !== undefined && material.ytDuration > 0 && (
+              <span>• {formatDuration(material.ytDuration)}</span>
+            )}
             {material.ogDomain && <span>• {material.ogDomain}</span>}
             {material.fileSize && <span>• {formatBytes(material.fileSize)}</span>}
             {material.tags && material.tags.length > 0 && (
@@ -678,8 +765,50 @@ export function LibraryMaterialCard({
           >
             <Trash2 className="size-4" />
           </Button>
+
+          {/* Three dots dropdown */}
+          <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="size-8 rounded-lg text-muted-foreground hover:bg-muted"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreVertical className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48 p-1 rounded-xl" onClick={(e) => e.stopPropagation()}>
+              <DropdownMenuItem 
+                onSelect={(e) => {
+                  e.preventDefault();
+                  setEditOpen(true);
+                }}
+                className="flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer text-sm font-medium"
+              >
+                <Edit3 className="size-4 text-muted-foreground" />
+                <span>Edit Details</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
+
+      {editOpen && (
+        <EditMaterialModal
+          material={{
+            id: material.id,
+            title: material.title,
+            tags: material.tags,
+            contentType: material.contentType,
+            ytPlaylistId: material.ytPlaylistId,
+            ytVideoRange: material.ytVideoRange,
+          }}
+          isOpen={editOpen}
+          onClose={() => setEditOpen(false)}
+          queryFilter={qFilter}
+        />
+      )}
     </motion.div>
   );
 }

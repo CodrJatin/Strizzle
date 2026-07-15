@@ -1,9 +1,10 @@
 import { z } from 'zod';
 import { createTRPCRouter, protectedProcedure } from '../trpc';
-import { materials, storageObjects, libraryMaterials, hiveMaterialShares, hiveMembers } from '@/db/schema';
+import { materials, storageObjects, libraryMaterials, hiveMaterialShares, hiveMembers, youtubePlaylistVideos } from '@/db/schema';
 import { fetchLinkMeta } from '../lib/fetchLinkMeta';
 import { TRPCError } from '@trpc/server';
 import { eq, sql, desc, and } from 'drizzle-orm';
+import { parseVideoRange, fetchPlaylistVideos, fetchYoutubeVideoDurationWithoutKey, fetchYoutubeVideoDurationWithKey } from '@/lib/youtube';
 
 export const createTextMaterialSchema = z.object({
   body: z.string().min(1, "Content cannot be empty").max(10000),
@@ -43,6 +44,7 @@ export const updateMaterialSchema = z.object({
   title: z.string().min(1, "Title cannot be empty").optional(),
   body: z.string().optional(),
   tags: z.array(z.string()).optional(),
+  ytVideoRange: z.string().optional(),
 });
 
 export const deleteMaterialSchema = z.object({
@@ -101,6 +103,101 @@ export const materialRouter = createTRPCRouter({
 
         const title = meta.title || input.url;
 
+        if (isYoutube) {
+          // Parse YouTube Playlist and Video details
+          const playlistIdMatch = input.url.match(/[&?]list=([^&]+)/i);
+          const playlistId = playlistIdMatch ? playlistIdMatch[1] : null;
+
+          const videoIdMatch = input.url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/||watch\?.*v=)|youtu\.be\/)([^"&?\/ ]{11})/i);
+          const videoId = videoIdMatch ? videoIdMatch[1] : null;
+
+          if (playlistId) {
+            const apiKey = process.env.YOUTUBE_API_KEY;
+            if (!apiKey) {
+              throw new TRPCError({
+                code: 'BAD_REQUEST',
+                message: 'YouTube API Key is not configured on the server. Cannot fetch playlist details.',
+              });
+            }
+
+            const playlistVideos = await fetchPlaylistVideos(playlistId, apiKey);
+            const totalDuration = playlistVideos.reduce((sum, v) => sum + v.duration, 0);
+
+            const [material] = await ctx.db
+              .insert(materials)
+              .values({
+                ownerId: ctx.user.id,
+                contentType: 'youtube',
+                url: input.url,
+                title,
+                ogTitle: meta.title,
+                ogDescription: meta.description || 'YouTube Playlist',
+                ogImage: meta.image,
+                ogDomain: 'youtube.com',
+                tags: input.tags,
+                ytPlaylistId: playlistId,
+                ytDuration: totalDuration,
+                ytVideoRange: null,
+              })
+              .returning();
+
+            if (!material) {
+              throw new TRPCError({
+                code: 'INTERNAL_SERVER_ERROR',
+                message: 'Failed to create playlist material.',
+              });
+            }
+
+            if (playlistVideos.length > 0) {
+              await ctx.db.insert(youtubePlaylistVideos).values(
+                playlistVideos.map((v, index) => ({
+                  materialId: material.id,
+                  videoId: v.videoId,
+                  title: v.title,
+                  duration: v.duration,
+                  position: index + 1,
+                }))
+              );
+            }
+
+            return material;
+          } else if (videoId) {
+            let duration = await fetchYoutubeVideoDurationWithoutKey(input.url);
+            const apiKey = process.env.YOUTUBE_API_KEY;
+            if (duration === null && apiKey) {
+              duration = await fetchYoutubeVideoDurationWithKey(videoId, apiKey);
+            }
+
+            const [material] = await ctx.db
+              .insert(materials)
+              .values({
+                ownerId: ctx.user.id,
+                contentType: 'youtube',
+                url: input.url,
+                title,
+                ogTitle: meta.title,
+                ogDescription: meta.description,
+                ogImage: meta.image,
+                ogDomain: 'youtube.com',
+                tags: input.tags,
+                ytPlaylistId: null,
+                ytDuration: duration || 0,
+                ytVideoRange: null,
+              })
+              .returning();
+
+            if (!material) {
+              throw new TRPCError({
+                code: 'INTERNAL_SERVER_ERROR',
+                message: 'Failed to create YouTube video material.',
+              });
+            }
+
+            return material;
+          }
+        }
+
+        // Standard link material creation fallback
         const [material] = await ctx.db
           .insert(materials)
           .values({
@@ -335,12 +432,35 @@ export const materialRouter = createTRPCRouter({
           });
         }
 
+        let finalDuration = material.ytDuration;
+        let finalVideoRange = material.ytVideoRange;
+
+        if (input.ytVideoRange !== undefined && material.contentType === 'youtube') {
+          if (material.ytPlaylistId) {
+            const videos = await ctx.db
+              .select()
+              .from(youtubePlaylistVideos)
+              .where(eq(youtubePlaylistVideos.materialId, material.id))
+              .orderBy(youtubePlaylistVideos.position);
+
+            const allowedIndices = parseVideoRange(input.ytVideoRange, videos.length);
+            const newDuration = videos
+              .filter((v) => allowedIndices.has(v.position))
+              .reduce((sum, v) => sum + v.duration, 0);
+
+            finalDuration = newDuration;
+            finalVideoRange = input.ytVideoRange.trim() === "" ? null : input.ytVideoRange;
+          }
+        }
+
         const [updated] = await ctx.db
           .update(materials)
           .set({
             title: input.title !== undefined ? input.title : material.title,
             body: input.body !== undefined ? input.body : material.body,
             tags: input.tags !== undefined ? input.tags : material.tags,
+            ytVideoRange: finalVideoRange,
+            ytDuration: finalDuration,
             updatedAt: new Date(),
           })
           .where(eq(materials.id, input.id))
@@ -615,6 +735,65 @@ export const materialRouter = createTRPCRouter({
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
           message: 'An unexpected error occurred while fetching the material.',
+        });
+      }
+    }),
+
+  getPlaylistVideos: protectedProcedure
+    .input(z.object({ materialId: z.string().uuid("Invalid material ID") }))
+    .query(async ({ ctx, input }) => {
+      try {
+        const [material] = await ctx.db
+          .select()
+          .from(materials)
+          .where(eq(materials.id, input.materialId))
+          .limit(1);
+
+        if (!material) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Material not found.',
+          });
+        }
+
+        // Check access
+        let hasAccess = material.ownerId === ctx.user.id;
+        if (!hasAccess) {
+          const [sharedCheck] = await ctx.db
+            .select({ id: hiveMaterialShares.id })
+            .from(hiveMaterialShares)
+            .innerJoin(hiveMembers, eq(hiveMaterialShares.hiveId, hiveMembers.hiveId))
+            .where(
+              and(
+                eq(hiveMaterialShares.materialId, input.materialId),
+                eq(hiveMembers.userId, ctx.user.id)
+              )
+            )
+            .limit(1);
+
+          hasAccess = !!sharedCheck;
+        }
+
+        if (!hasAccess) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'You do not have access to this playlist.',
+          });
+        }
+
+        const videos = await ctx.db
+          .select()
+          .from(youtubePlaylistVideos)
+          .where(eq(youtubePlaylistVideos.materialId, input.materialId))
+          .orderBy(youtubePlaylistVideos.position);
+
+        return videos;
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        console.error("Error in getPlaylistVideos:", error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to retrieve playlist videos.',
         });
       }
     }),

@@ -116,6 +116,7 @@ export const hiveMaterialRouter = createTRPCRouter({
             },
             material: {
               id: materials.id,
+              ownerId: materials.ownerId,
               contentType: materials.contentType,
               title: materials.title,
               body: materials.body,
@@ -129,6 +130,10 @@ export const hiveMaterialRouter = createTRPCRouter({
               ogImage: materials.ogImage,
               ogDomain: materials.ogDomain,
               storagePath: materials.storagePath,
+              tags: materials.tags,
+              ytPlaylistId: materials.ytPlaylistId,
+              ytDuration: materials.ytDuration,
+              ytVideoRange: materials.ytVideoRange,
             },
           })
           .from(hiveMaterialShares)
