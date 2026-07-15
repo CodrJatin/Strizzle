@@ -147,42 +147,6 @@ export default function PreferencesPage() {
           <div className="h-1.5 w-1/2 bg-slate-850 bg-opacity-40 bg-zinc-900 rounded" />
         </div>
       )
-    },
-    {
-      id: "ocean",
-      name: "ocean",
-      label: "Ocean",
-      preview: (
-        <div className="aspect-[4/3] rounded-lg border border-blue-200/60 bg-sky-50 p-2.5 flex flex-col gap-1.5 overflow-hidden">
-          <div className="h-2 w-full bg-sky-400 rounded-sm" />
-          <div className="h-1.5 w-full bg-sky-200 rounded-sm" />
-          <div className="h-1.5 w-3/4 bg-sky-200 rounded-sm" />
-        </div>
-      )
-    },
-    {
-      id: "forest",
-      name: "forest",
-      label: "Forest",
-      preview: (
-        <div className="aspect-[4/3] rounded-lg border border-green-200/65 bg-emerald-50/60 p-2.5 flex flex-col gap-1.5 overflow-hidden">
-          <div className="h-2 w-full bg-emerald-400 rounded-sm" />
-          <div className="h-1.5 w-full bg-emerald-200 rounded-sm" />
-          <div className="h-1.5 w-3/4 bg-emerald-200 rounded-sm" />
-        </div>
-      )
-    },
-    {
-      id: "sunset",
-      name: "sunset",
-      label: "Sunset",
-      preview: (
-        <div className="aspect-[4/3] rounded-lg border border-orange-200/50 bg-[#faf6ef] p-2.5 flex flex-col gap-1.5 overflow-hidden">
-          <div className="h-2 w-full bg-orange-400 rounded-sm" />
-          <div className="h-1.5 w-full bg-orange-200/60 rounded-sm" />
-          <div className="h-1.5 w-3/4 bg-orange-200/60 rounded-sm" />
-        </div>
-      )
     }
   ];
 
@@ -223,10 +187,7 @@ export default function PreferencesPage() {
                   "size-3.5 rounded-full border border-border flex items-center justify-center",
                   t.name === "system" && "bg-gradient-to-r from-gray-400 to-gray-700",
                   t.name === "default" && "bg-slate-200",
-                  t.name === "dark" && "bg-slate-900",
-                  t.name === "ocean" && "bg-sky-500",
-                  t.name === "forest" && "bg-emerald-500",
-                  t.name === "sunset" && "bg-orange-500"
+                  t.name === "dark" && "bg-slate-900"
                 )} />
                 <span className="text-xs font-semibold text-foreground capitalize">
                   {t.label}

@@ -29,9 +29,6 @@ export function UserProfilePopover({ fullName, avatarUrl, onOpenShortcuts }: Use
     { value: "system", label: "System" },
     { value: "default", label: "Light" },
     { value: "dark", label: "Dark" },
-    { value: "ocean", label: "Ocean" },
-    { value: "forest", label: "Forest" },
-    { value: "sunset", label: "Sunset" },
   ];
 
   const theme = useThemeStore((s) => s.theme);
