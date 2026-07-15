@@ -445,6 +445,113 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
     </div>
   );
 
+  const headerLinks = [
+    { label: "Dashboard", href: "/dashboard", icon: Home },
+    { label: "Workspace", href: "/desk", icon: Layers },
+    { label: "Library", href: "/library", icon: BookOpen },
+    { label: "Community", href: "/feed", icon: Rss },
+  ];
+
+  const isHeaderLinkActive = (href: string) => {
+    if (href === "/dashboard") {
+      return pathname === "/dashboard" || pathname === "/" || pathname.startsWith("/calendar");
+    }
+    if (href === "/desk") {
+      return pathname.startsWith("/desk") || pathname.startsWith("/notes") || pathname.startsWith("/groups") || pathname.startsWith("/archive");
+    }
+    if (href === "/library") {
+      return pathname.startsWith("/library");
+    }
+    if (href === "/feed") {
+      return pathname.startsWith("/feed") || pathname.startsWith("/hive") || pathname.startsWith("/hives");
+    }
+    return pathname.startsWith(href);
+  };
+
+  const renderMobileSidebarContents = () => (
+    <div className="flex flex-col h-full bg-card text-card-foreground">
+      {/* Title Tile */}
+      <div className="p-4 border-b border-border">
+        <div className="flex items-center gap-3 bg-muted/40 p-3 rounded-2xl border border-border/50">
+          <div className="flex items-center justify-center size-10 rounded-xl bg-primary/10 text-primary border border-primary/10 shadow-sm">
+            <Brand size="sm" />
+          </div>
+          <div className="flex flex-col min-w-0">
+            <span className="text-sm font-semibold tracking-tight text-foreground truncate">
+              Strizzle
+            </span>
+            <span className="text-xs text-muted-foreground truncate">
+              Menu
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Nav Links */}
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        <span className="px-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-2">Main Navigation</span>
+        {headerLinks.map((link) => {
+          const isActive = isHeaderLinkActive(link.href);
+          return (
+            <Link
+              key={link.label}
+              href={link.href}
+              onClick={() => setMobileMenuOpen(false)}
+              onMouseEnter={() => handleNavHover(link.href)}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all",
+                isActive
+                  ? "bg-primary/10 text-primary font-semibold"
+                  : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+              )}
+            >
+              <link.icon className={cn("size-4.5", isActive ? "text-primary" : "text-muted-foreground")} />
+              {link.label}
+            </Link>
+          );
+        })}
+
+        {/* User Hives list */}
+        {userHives.length > 0 && (
+          <div className="pt-4 mt-4 border-t border-border/40 space-y-1">
+            <span className="px-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-2">My Hives</span>
+            {userHives.map((hive: any) => {
+              const hiveUrl = `/hive/${hive.id}/overview`;
+              const isActive = pathname.startsWith(`/hive/${hive.id}`);
+              return (
+                <Link
+                  key={hive.id}
+                  href={hiveUrl}
+                  onClick={() => setMobileMenuOpen(false)}
+                  onMouseEnter={() => handleNavHover(hiveUrl)}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-all",
+                    isActive
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                  )}
+                >
+                  <Users className="size-3.5 shrink-0" />
+                  <span className="truncate">{hive.name}</span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </nav>
+
+      {/* Settings link */}
+      <div className="p-4 border-t border-border">
+        <Link href="/settings" onClick={() => setMobileMenuOpen(false)}>
+          <Button variant="outline" className="w-full h-10 border-border/80 font-medium rounded-xl flex items-center justify-center gap-2 cursor-pointer text-xs">
+            <Settings className="size-4" />
+            Settings
+          </Button>
+        </Link>
+      </div>
+    </div>
+  );
+
   return (
     <div className="h-screen bg-background flex flex-col font-sans overflow-hidden">
       
@@ -461,7 +568,7 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="p-0 w-64 border-r border-border">
-              {renderSidebarContents()}
+              {renderMobileSidebarContents()}
             </SheetContent>
           </Sheet>
           <Link href="/dashboard" className="flex items-center">
@@ -541,6 +648,17 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
             </InputGroup>
           </div>
 
+          {/* Search icon (Mobile only) */}
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => setSearchOpen(true)}
+            className="sm:hidden size-8.5 rounded-lg cursor-pointer text-muted-foreground hover:text-foreground"
+          >
+            <Search className="size-4.5" />
+            <span className="sr-only">Search</span>
+          </Button>
+
           {/* Notification bell */}
           <Button variant="ghost" size="icon" className="size-8.5 rounded-lg cursor-pointer text-muted-foreground hover:text-foreground">
             <Bell className="size-4.5" />
@@ -582,7 +700,7 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
           {/* Mobile-only Floating Action Button */}
           <button
             onClick={handleActionClick}
-            className="lg:hidden fixed bottom-6 right-6 size-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg hover:bg-primary/90 transition-all active:scale-95 cursor-pointer z-50 border border-primary/20"
+            className="lg:hidden fixed bottom-20 right-6 size-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg hover:bg-primary/90 transition-all active:scale-95 cursor-pointer z-50 border border-primary/20"
           >
             <Plus className="size-5" />
             <span className="sr-only">Action</span>
@@ -593,6 +711,34 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
           <ShortcutsHelpModal isOpen={shortcutsHelpOpen} onClose={() => setShortcutsHelpOpen(false)} />
           <IOSOnboardingBanner />
         </main>
+      </div>
+
+      {/* Bottom Navbar (Mobile only) */}
+      <div className="lg:hidden h-16 border-t border-border bg-card/95 backdrop-blur-md flex items-center justify-around px-2 shrink-0 z-40">
+        {activeConfig.links.map((link) => {
+          const isActive =
+            pathname === link.href ||
+            (link.href !== "/dashboard" &&
+              link.href !== "/" &&
+              link.href !== "/settings" &&
+              pathname.startsWith(link.href));
+          return (
+            <Link
+              key={link.label}
+              href={link.href}
+              onMouseEnter={() => handleNavHover(link.href)}
+              className={cn(
+                "flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl text-[10px] font-medium transition-all gap-1 text-center min-w-0 max-w-20",
+                isActive
+                  ? "text-primary font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <link.icon className={cn("size-5", isActive ? "text-primary" : "text-muted-foreground")} />
+              <span className="truncate w-full">{link.label}</span>
+            </Link>
+          );
+        })}
       </div>
     </div>
   );
