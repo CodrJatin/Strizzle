@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { 
   Star, Trash2, ExternalLink, Download, Share2, 
@@ -102,6 +103,7 @@ export function LibraryMaterialCard({
   queryFilter,
   isShimmer = false 
 }: LibraryMaterialCardProps) {
+  const router = useRouter();
   const utils = api.useUtils();
   const supabase = createClient();
   const { isCached, isDownloading, downloadMaterial } = useMaterialCache();
@@ -289,10 +291,8 @@ export function LibraryMaterialCard({
           window.open(fileUrl, "_blank", "noopener,noreferrer");
         }
       }
-    } else if (material.url) {
-      window.open(material.url, "_blank", "noopener,noreferrer");
-    } else if (fileUrl) {
-      window.open(fileUrl, "_blank", "noopener,noreferrer");
+    } else {
+      router.push(`/preview/${material.id}`);
     }
   };
 

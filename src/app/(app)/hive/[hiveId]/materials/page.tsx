@@ -7,7 +7,7 @@ import {
   FileText, AlertCircle, ChevronDown, ChevronRight,
   ExternalLink, Download, Share2, LayoutGrid, List,
   Filter, Search, Check, X, File, Link, CheckCircle2,
-  Calendar
+  Calendar, Eye
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -941,9 +941,21 @@ export default function MaterialsPage({ params }: PageProps) {
               const isPdf = m.mimeType === "application/pdf" || m.fileName?.endsWith(".pdf");
               const isVideo = m.url?.includes("youtube.com") || m.url?.includes("youtu.be") || m.url?.includes("vimeo.com");
               const isDocx = m.fileName?.endsWith(".docx") || m.fileName?.endsWith(".doc");
+              const isPreviewable = m.contentType !== "text" && m.contentType !== "image";
 
               return (
-                <Card key={item.id} className="group relative border-border shadow-sm bg-card rounded-2xl overflow-hidden hover:shadow-md transition-all duration-200 flex flex-col h-full">
+                <Card 
+                  key={item.id} 
+                  onClick={() => {
+                    if (isPreviewable) {
+                      router.push(`/preview/${m.id}`);
+                    }
+                  }}
+                  className={cn(
+                    "group relative border-border shadow-sm bg-card rounded-2xl overflow-hidden hover:shadow-md transition-all duration-200 flex flex-col h-full",
+                    isPreviewable && "cursor-pointer"
+                  )}
+                >
                   {/* Card Image Header */}
                   <div className="relative aspect-video w-full bg-muted/30 flex items-center justify-center border-b border-border/40 overflow-hidden select-none">
                     {isWeb && m.ogImage ? (
@@ -1007,10 +1019,10 @@ export default function MaterialsPage({ params }: PageProps) {
                       {m.title || "Shared Resource"}
                     </h4>
                     
-                    <div className="flex flex-col gap-2 w-44">
+                    <div className="flex flex-col gap-2 w-44" onClick={(e) => e.stopPropagation()}>
                       {/* Copy to Library Action */}
                       <Button 
-                        onClick={() => addToLibraryMutation.mutate({ materialId: m.id })}
+                        onClick={(e) => { e.stopPropagation(); addToLibraryMutation.mutate({ materialId: m.id }); }}
                         variant="default" 
                         size="sm" 
                         className="h-8 text-xs font-semibold rounded-lg shadow-sm"
@@ -1019,10 +1031,20 @@ export default function MaterialsPage({ params }: PageProps) {
                         Copy to Library
                       </Button>
 
-                      {/* Open Link / Download File */}
-                      {isWeb && m.url ? (
+                      {/* Open / Preview Action */}
+                      {isPreviewable ? (
                         <Button 
-                          onClick={() => window.open(m.url!, "_blank")}
+                          onClick={(e) => { e.stopPropagation(); router.push(`/preview/${m.id}`); }}
+                          variant="outline" 
+                          size="sm" 
+                          className="h-8 text-xs font-semibold rounded-lg bg-card border-border hover:bg-muted"
+                        >
+                          <Eye className="size-3.5 mr-1.5" />
+                          Preview
+                        </Button>
+                      ) : m.url ? (
+                        <Button 
+                          onClick={(e) => { e.stopPropagation(); window.open(m.url!, "_blank"); }}
                           variant="outline" 
                           size="sm" 
                           className="h-8 text-xs font-semibold rounded-lg bg-card border-border hover:bg-muted"
@@ -1032,7 +1054,7 @@ export default function MaterialsPage({ params }: PageProps) {
                         </Button>
                       ) : m.storagePath ? (
                         <Button 
-                          onClick={() => handleDownload(m.storagePath, m.fileName)}
+                          onClick={(e) => { e.stopPropagation(); handleDownload(m.storagePath, m.fileName); }}
                           variant="outline" 
                           size="sm" 
                           className="h-8 text-xs font-semibold rounded-lg bg-card border-border hover:bg-muted"
@@ -1045,7 +1067,7 @@ export default function MaterialsPage({ params }: PageProps) {
                       {/* Delete (Unshare) Action for Owner / Admin / Sharer */}
                       {(isOwnerOrAdmin || isSharer) && (
                         <Button 
-                          onClick={() => handleUnshare(item.id)}
+                          onClick={(e) => { e.stopPropagation(); handleUnshare(item.id); }}
                           variant="destructive" 
                           size="sm" 
                           className="h-8 text-xs font-semibold rounded-lg cursor-pointer"
@@ -1067,10 +1089,21 @@ export default function MaterialsPage({ params }: PageProps) {
               const m = item.material;
               const isOwnerOrAdmin = hive?.role === "owner" || hive?.role === "admin";
               const isSharer = item.sharedBy === hive?.ownerId; // simplfy check for unsharing permissions
+              const isPreviewable = m.contentType !== "text" && m.contentType !== "image";
 
               return (
                 <div key={item.id} className="flex items-center justify-between p-4 hover:bg-muted/30 transition-all select-none">
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div 
+                    onClick={() => {
+                      if (isPreviewable) {
+                        router.push(`/preview/${m.id}`);
+                      }
+                    }}
+                    className={cn(
+                      "flex items-center gap-3 min-w-0 flex-1",
+                      isPreviewable && "cursor-pointer"
+                    )}
+                  >
                     <FileText className="size-5 text-primary shrink-0" />
                     <div className="flex flex-col min-w-0">
                       <span className="text-xs font-bold text-foreground truncate">{m.title || "Untitled shared material"}</span>
@@ -1080,9 +1113,9 @@ export default function MaterialsPage({ params }: PageProps) {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
                     <Button 
-                      onClick={() => addToLibraryMutation.mutate({ materialId: m.id })}
+                      onClick={(e) => { e.stopPropagation(); addToLibraryMutation.mutate({ materialId: m.id }); }}
                       variant="ghost" 
                       size="icon" 
                       className="size-8 text-muted-foreground hover:text-foreground rounded-lg"
@@ -1091,9 +1124,19 @@ export default function MaterialsPage({ params }: PageProps) {
                       <Share2 className="size-4" />
                     </Button>
 
-                    {m.url ? (
+                    {isPreviewable ? (
                       <Button 
-                        onClick={() => window.open(m.url!, "_blank")}
+                        onClick={(e) => { e.stopPropagation(); router.push(`/preview/${m.id}`); }}
+                        variant="ghost" 
+                        size="icon" 
+                        className="size-8 text-muted-foreground hover:text-foreground rounded-lg"
+                        title="Preview"
+                      >
+                        <Eye className="size-4" />
+                      </Button>
+                    ) : m.url ? (
+                      <Button 
+                        onClick={(e) => { e.stopPropagation(); window.open(m.url!, "_blank"); }}
                         variant="ghost" 
                         size="icon" 
                         className="size-8 text-muted-foreground hover:text-foreground rounded-lg"
@@ -1103,7 +1146,7 @@ export default function MaterialsPage({ params }: PageProps) {
                       </Button>
                     ) : m.storagePath ? (
                       <Button 
-                        onClick={() => handleDownload(m.storagePath, m.fileName)}
+                        onClick={(e) => { e.stopPropagation(); handleDownload(m.storagePath, m.fileName); }}
                         variant="ghost" 
                         size="icon" 
                         className="size-8 text-muted-foreground hover:text-foreground rounded-lg"
@@ -1115,7 +1158,7 @@ export default function MaterialsPage({ params }: PageProps) {
 
                     {(isOwnerOrAdmin || isSharer) && (
                       <Button 
-                        onClick={() => handleUnshare(item.id)}
+                        onClick={(e) => { e.stopPropagation(); handleUnshare(item.id); }}
                         variant="ghost" 
                         size="icon" 
                         className="size-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer"

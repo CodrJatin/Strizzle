@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { createTRPCRouter, protectedProcedure } from '../trpc';
-import { materials, storageObjects, libraryMaterials, hiveMaterialShares } from '@/db/schema';
+import { materials, storageObjects, libraryMaterials, hiveMaterialShares, hiveMembers } from '@/db/schema';
 import { fetchLinkMeta } from '../lib/fetchLinkMeta';
 import { TRPCError } from '@trpc/server';
 import { eq, sql, desc, and } from 'drizzle-orm';
@@ -541,6 +541,80 @@ export const materialRouter = createTRPCRouter({
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
           message: 'Failed to verify hive sharing status.',
+        });
+      }
+    }),
+
+  getMaterial: protectedProcedure
+    .input(z.object({ id: z.string().uuid("Invalid ID format") }))
+    .query(async ({ ctx, input }) => {
+      try {
+        const [material] = await ctx.db
+          .select()
+          .from(materials)
+          .where(eq(materials.id, input.id))
+          .limit(1);
+
+        if (!material) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Material not found.',
+          });
+        }
+
+        // 1. If user is owner, they have access
+        let hasAccess = material.ownerId === ctx.user.id;
+
+        // 2. If not owner, check if shared to any hive where user is member
+        if (!hasAccess) {
+          const [sharedCheck] = await ctx.db
+            .select({ id: hiveMaterialShares.id })
+            .from(hiveMaterialShares)
+            .innerJoin(hiveMembers, eq(hiveMaterialShares.hiveId, hiveMembers.hiveId))
+            .where(
+              and(
+                eq(hiveMaterialShares.materialId, input.id),
+                eq(hiveMembers.userId, ctx.user.id)
+              )
+            )
+            .limit(1);
+
+          hasAccess = !!sharedCheck;
+        }
+
+        if (!hasAccess) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'You do not have access to this material.',
+          });
+        }
+
+        // Check if the material is in the user's library and if it is starred
+        const [libraryEntry] = await ctx.db
+          .select({
+            id: libraryMaterials.id,
+            starred: libraryMaterials.starred,
+          })
+          .from(libraryMaterials)
+          .where(
+            and(
+              eq(libraryMaterials.materialId, input.id),
+              eq(libraryMaterials.userId, ctx.user.id)
+            )
+          )
+          .limit(1);
+
+        return {
+          ...material,
+          inLibrary: !!libraryEntry,
+          starred: libraryEntry ? libraryEntry.starred : false,
+        };
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        console.error("Error in getMaterial:", error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'An unexpected error occurred while fetching the material.',
         });
       }
     }),
