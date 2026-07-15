@@ -255,8 +255,8 @@ export default function FeedPage() {
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
-          <AnimatePresence initial={false}>
+      <motion.div layout className="space-y-4">
+          <AnimatePresence mode="popLayout">
             {filteredFeedItems.map((item) => {
               const style = item.colorTheme && themeStyles[item.colorTheme]
                 ? themeStyles[item.colorTheme]
@@ -265,10 +265,11 @@ export default function FeedPage() {
               return (
                 <motion.div 
                   key={item.id}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -12 }}
-                  transition={{ duration: 0.2 }}
+                  layout
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
                   className="flex gap-4 p-4 border border-border/60 rounded-2xl bg-card hover:bg-muted/5 transition-all duration-200 shadow-xs relative group"
                 >
                   {/* Timeline left line connector */}
@@ -320,8 +321,8 @@ export default function FeedPage() {
                 </motion.div>
               );
             })}
-          </AnimatePresence>
-        </div>
+            </AnimatePresence>
+          </motion.div>
       )}
 
       {/* Text/Image Preview Dialog */}

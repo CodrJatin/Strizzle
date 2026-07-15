@@ -649,8 +649,9 @@ export default function WorkspaceTasksPage() {
                     {colTasks.length === 0 ? (
                       <p className="text-[10px] text-muted-foreground/60 font-semibold py-4 text-center">No tasks in this stage.</p>
                     ) : (
-                      <div className="divide-y divide-border/40">
-                        {colTasks.map((task) => {
+                      <motion.div layout className="divide-y divide-border/40">
+                        <AnimatePresence mode="popLayout">
+                          {colTasks.map((task) => {
                           const dueAtDate = task.dueAt ? new Date(task.dueAt) : null;
                           const isOverdue = dueAtDate && dueAtDate < new Date() && task.status !== "done";
                           const formattedDue = dueAtDate
@@ -663,8 +664,13 @@ export default function WorkspaceTasksPage() {
                             : null;
                           
                           return (
-                            <div 
+                            <motion.div 
                               key={task.id}
+                              layout
+                              initial={{ opacity: 0, y: 8 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: 8 }}
+                              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
                               className="flex items-center justify-between gap-4 py-3.5 hover:bg-muted/10 px-2 rounded-xl transition-all cursor-pointer group/list"
                               onClick={() => setSelectedTaskId(task.id)}
                             >
@@ -771,10 +777,11 @@ export default function WorkspaceTasksPage() {
                                   <Trash2 className="size-3.5" />
                                 </Button>
                               </div>
-                            </div>
+                            </motion.div>
                           );
                         })}
-                      </div>
+                        </AnimatePresence>
+                      </motion.div>
                     )}
                   </div>
                 );

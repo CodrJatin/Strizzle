@@ -33,6 +33,7 @@ import { api } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import { hashFile } from "@/lib/hashFile";
 import { useConfirmStore } from "@/store/confirmStore";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface PageProps {
   params: Promise<{ hiveId: string }>;
@@ -1025,8 +1026,12 @@ export default function MaterialsPage({ params }: PageProps) {
             </p>
           </div>
         ) : viewMode === "grid" ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredMaterials.map((item) => {
+          <motion.div
+            layout
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+          >
+            <AnimatePresence mode="popLayout">
+              {filteredMaterials.map((item) => {
               const m = item.material;
               const isOwnerOrAdmin = hive?.role === "owner" || hive?.role === "admin";
               const isSharer = item.sharedBy === hive?.ownerId; // simplfy check for unsharing permissions
@@ -1039,8 +1044,15 @@ export default function MaterialsPage({ params }: PageProps) {
               const isPreviewable = m.contentType !== "text" && m.contentType !== "image";
 
               return (
+                <motion.div
+                  key={item.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                >
                 <Card 
-                  key={item.id} 
                   className={cn(
                     "group relative border-border shadow-sm bg-card rounded-2xl overflow-hidden hover:shadow-md transition-all duration-200 flex flex-col h-full"
                   )}
@@ -1122,20 +1134,34 @@ export default function MaterialsPage({ params }: PageProps) {
                     </div>
                   </div>
                 </Card>
+                </motion.div>
               );
             })}
-          </div>
+            </AnimatePresence>
+          </motion.div>
         ) : (
           /* List Mode Layout */
-          <div className="border border-border/60 bg-card rounded-2xl overflow-hidden shadow-sm divide-y divide-border/40">
-            {filteredMaterials.map((item) => {
+          <motion.div
+            layout
+            className="border border-border/60 bg-card rounded-2xl overflow-hidden shadow-sm divide-y divide-border/40"
+          >
+            <AnimatePresence mode="popLayout">
+              {filteredMaterials.map((item) => {
               const m = item.material;
               const isOwnerOrAdmin = hive?.role === "owner" || hive?.role === "admin";
               const isSharer = item.sharedBy === hive?.ownerId; // simplfy check for unsharing permissions
               const isPreviewable = m.contentType !== "text" && m.contentType !== "image";
 
               return (
-                <div key={item.id} className="flex items-center justify-between p-4 hover:bg-muted/30 transition-all select-none">
+                <motion.div
+                  key={item.id}
+                  layout
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 8 }}
+                  transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                  className="flex items-center justify-between p-4 hover:bg-muted/30 transition-all select-none"
+                >
                   <div 
                     onClick={() => {
                       if (isPreviewable) {
@@ -1224,10 +1250,11 @@ export default function MaterialsPage({ params }: PageProps) {
                       </Button>
                     )}
                   </div>
-                </div>
+                </motion.div>
               );
             })}
-          </div>
+            </AnimatePresence>
+          </motion.div>
         )}
       </div>
 

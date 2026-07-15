@@ -371,22 +371,35 @@ export default function LibraryPage() {
         {/* Card List / Grid Content */}
         {!isLoading && items.length > 0 && (
           <div className="space-y-6">
-            <div className={cn(
-              viewMode === "grid" 
-                ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" 
-                : "flex flex-col gap-3"
-            )}>
-              {items.map((item) => (
-                <LibraryMaterialCard
-                  key={item.id}
-                  item={item}
-                  viewMode={viewMode}
-                  onDeleteClick={setDeletingItem}
-                  onTextOpenClick={setViewingTextItem}
-                  queryFilter={queryFilter}
-                />
-              ))}
-            </div>
+            <motion.div
+              layout
+              className={cn(
+                viewMode === "grid" 
+                  ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" 
+                  : "flex flex-col gap-3"
+              )}
+            >
+              <AnimatePresence mode="popLayout">
+                {items.map((item) => (
+                  <motion.div
+                    key={item.id}
+                    layout
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                    transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                  >
+                    <LibraryMaterialCard
+                      item={item}
+                      viewMode={viewMode}
+                      onDeleteClick={setDeletingItem}
+                      onTextOpenClick={setViewingTextItem}
+                      queryFilter={queryFilter}
+                    />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </motion.div>
 
             {/* Load More Trigger */}
             {hasNextPage && (
