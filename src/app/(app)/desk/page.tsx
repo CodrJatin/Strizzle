@@ -11,6 +11,14 @@ import { ShelfItemCard, type ShelfItem } from "@/components/ShelfItemCard";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DeskActionModal } from "@/components/DeskActionModal";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogDescription 
+} from "@/components/ui/dialog";
+import { createClient } from "@/lib/supabase/client";
 
 export default function DeskPage() {
   const openQuickAdd = useQuickAddStore((s) => s.open);
@@ -18,6 +26,8 @@ export default function DeskPage() {
 
   const [selectedItem, setSelectedItem] = React.useState<ShelfItem | null>(null);
   const [actionModalOpen, setActionModalOpen] = React.useState(false);
+  const [viewingTextItem, setViewingTextItem] = React.useState<ShelfItem | null>(null);
+  const supabase = createClient();
 
   // tRPC mutations for processing pending shares
   const createTextMaterial = api.material.createTextMaterial.useMutation();
@@ -180,6 +190,7 @@ export default function DeskPage() {
                 <ShelfItemCard 
                   item={item} 
                   onActionClick={handleActionClick} 
+                  onTextOpenClick={setViewingTextItem}
                 />
               </motion.div>
             ))}
@@ -241,6 +252,45 @@ export default function DeskPage() {
           }}
         />
       )}
+
+      {/* Viewing Notes & Images Dialog */}
+      <Dialog open={!!viewingTextItem} onOpenChange={(open) => { if (!open) setViewingTextItem(null); }}>
+        <DialogContent className="sm:max-w-lg bg-card text-card-foreground border border-border p-6 rounded-2xl shadow-xl flex flex-col max-h-[80vh]">
+          <DialogHeader className="space-y-1 border-b border-border/40 pb-4 shrink-0">
+            <DialogTitle className="text-lg font-bold tracking-tight">
+              {viewingTextItem?.material.contentType === "image"
+                ? (viewingTextItem.material.title || "Image Preview")
+                : (viewingTextItem?.material.title || "Note Preview")}
+            </DialogTitle>
+            <DialogDescription className="text-[10px] text-muted-foreground">
+              Added {viewingTextItem && new Date(viewingTextItem.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto py-4 flex items-center justify-center min-h-[200px]">
+            {viewingTextItem?.material.contentType === "image" ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={
+                  viewingTextItem.material.storagePath
+                    ? supabase.storage.from("materials").getPublicUrl(viewingTextItem.material.storagePath).data.publicUrl
+                    : viewingTextItem.material.ogImage || ""
+                }
+                alt={viewingTextItem.material.title || "Preview"}
+                className="max-w-full max-h-[50vh] object-contain rounded-lg border border-border/60 shadow-xs"
+              />
+            ) : (
+              <div className="text-xs text-foreground leading-relaxed whitespace-pre-wrap w-full">
+                {viewingTextItem?.material.body}
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end pt-4 border-t border-border/40 shrink-0">
+            <Button variant="outline" onClick={() => setViewingTextItem(null)} className="rounded-xl px-4 h-9.5 text-xs font-semibold">
+              Close Preview
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

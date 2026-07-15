@@ -12,6 +12,13 @@ import {
 import { EditMaterialModal } from "@/components/EditMaterialModal";
 import { formatDuration } from "@/lib/youtube";
 import { toast } from "sonner";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuSeparator, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -721,6 +728,89 @@ export default function MaterialsPage({ params }: PageProps) {
     document.body.removeChild(link);
   };
 
+  const renderHiveGridDropdown = (item: any, m: any, isOwnerOrAdmin: boolean, isSharer: boolean) => {
+    const isPreviewable = m.contentType !== "text" && m.contentType !== "image";
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="size-7 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/80"
+          >
+            <MoreVertical className="size-3.5" />
+            <span className="sr-only">Actions</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48 p-1 rounded-xl">
+          {/* Copy to Library */}
+          <DropdownMenuItem 
+            onSelect={() => addToLibraryMutation.mutate({ materialId: m.id })}
+            className="flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer text-sm font-medium"
+          >
+            <Share2 className="size-4 text-muted-foreground" />
+            <span>Copy to Library</span>
+          </DropdownMenuItem>
+
+          {/* Open / Preview / Download */}
+          {isPreviewable ? (
+            <DropdownMenuItem 
+              onSelect={() => router.push(`/preview/${m.id}`)}
+              className="flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer text-sm font-medium"
+            >
+              <Eye className="size-4 text-muted-foreground" />
+              <span>Preview</span>
+            </DropdownMenuItem>
+          ) : m.url ? (
+            <DropdownMenuItem 
+              onSelect={() => window.open(m.url!, "_blank")}
+              className="flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer text-sm font-medium"
+            >
+              <ExternalLink className="size-4 text-muted-foreground" />
+              <span>Open Link</span>
+            </DropdownMenuItem>
+          ) : m.storagePath ? (
+            <DropdownMenuItem 
+              onSelect={() => handleDownload(m.storagePath, m.fileName)}
+              className="flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer text-sm font-medium"
+            >
+              <Download className="size-4 text-muted-foreground" />
+              <span>Download</span>
+            </DropdownMenuItem>
+          ) : null}
+
+          {/* Edit Details */}
+          {user && m.ownerId === user.id && (
+            <DropdownMenuItem 
+              onSelect={(e) => {
+                e.preventDefault();
+                setEditMaterial(m);
+              }}
+              className="flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer text-sm font-medium"
+            >
+              <Edit3 className="size-4 text-muted-foreground" />
+              <span>Edit Details</span>
+            </DropdownMenuItem>
+          )}
+
+          {/* Delete / Unshare */}
+          {(isOwnerOrAdmin || isSharer) && (
+            <>
+              <DropdownMenuSeparator className="my-1 border-border" />
+              <DropdownMenuItem 
+                onSelect={() => handleUnshare(item.id)}
+                className="flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer text-sm font-medium text-destructive hover:bg-destructive/10 focus:bg-destructive/10 focus:text-destructive"
+              >
+                <Trash2 className="size-4 text-destructive" />
+                <span>Unshare Resource</span>
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  };
+
   // Render folder list recursively
   const renderFolderNode = (node: FolderNode, depth = 0) => {
     const hasChildren = node.children.length > 0;
@@ -951,154 +1041,84 @@ export default function MaterialsPage({ params }: PageProps) {
               return (
                 <Card 
                   key={item.id} 
-                  onClick={() => {
-                    if (isPreviewable) {
-                      router.push(`/preview/${m.id}`);
-                    }
-                  }}
                   className={cn(
-                    "group relative border-border shadow-sm bg-card rounded-2xl overflow-hidden hover:shadow-md transition-all duration-200 flex flex-col h-full",
-                    isPreviewable && "cursor-pointer"
+                    "group relative border-border shadow-sm bg-card rounded-2xl overflow-hidden hover:shadow-md transition-all duration-200 flex flex-col h-full"
                   )}
                 >
-                  {/* Card Image Header */}
-                  <div className="relative aspect-video w-full bg-muted/30 flex items-center justify-center border-b border-border/40 overflow-hidden select-none">
-                    {isWeb && m.ogImage ? (
-                      <img src={m.ogImage} alt={m.title || "Preview"} className="object-cover w-full h-full group-hover:scale-102 transition-transform duration-300" />
-                    ) : isVideo && m.ogImage ? (
-                      <div className="relative w-full h-full">
+                  {/* Clickable Card Body */}
+                  <div
+                    onClick={() => {
+                      if (isPreviewable) {
+                        router.push(`/preview/${m.id}`);
+                      }
+                    }}
+                    className={cn("flex-1 flex flex-col", isPreviewable && "cursor-pointer")}
+                  >
+                    {/* Card Image Header */}
+                    <div className="relative aspect-video w-full bg-muted/30 flex items-center justify-center border-b border-border/40 overflow-hidden select-none">
+                      {isWeb && m.ogImage ? (
                         <img src={m.ogImage} alt={m.title || "Preview"} className="object-cover w-full h-full group-hover:scale-102 transition-transform duration-300" />
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/10">
-                          <div className="size-11 rounded-full bg-white/90 text-primary shadow flex items-center justify-center border border-border">
-                            <Plus className="size-5 fill-primary text-primary ml-0.5 shrink-0" style={{ transform: "rotate(45deg)" }} />
+                      ) : isVideo && m.ogImage ? (
+                        <div className="relative w-full h-full">
+                          <img src={m.ogImage} alt={m.title || "Preview"} className="object-cover w-full h-full group-hover:scale-102 transition-transform duration-300" />
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+                            <div className="size-11 rounded-full bg-white/90 text-primary shadow flex items-center justify-center border border-border">
+                              <Plus className="size-5 fill-primary text-primary ml-0.5 shrink-0" style={{ transform: "rotate(45deg)" }} />
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ) : isPdf ? (
-                      <div className="flex flex-col items-center justify-center p-6 w-full h-full bg-red-50/20 dark:bg-red-950/5">
-                        <FileText className="size-14 text-red-500 stroke-[1.5]" />
-                      </div>
-                    ) : isDocx ? (
-                      <div className="flex flex-col items-center justify-center p-6 w-full h-full bg-blue-50/20 dark:bg-blue-950/5">
-                        <FileText className="size-14 text-blue-500 stroke-[1.5]" />
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center p-6 w-full h-full bg-muted/10">
-                        <FileText className="size-12 text-muted-foreground/60 stroke-[1.5]" />
-                      </div>
-                    )}
+                      ) : isPdf ? (
+                        <div className="flex flex-col items-center justify-center p-6 w-full h-full bg-red-50/20 dark:bg-red-950/5">
+                          <FileText className="size-14 text-red-500 stroke-[1.5]" />
+                        </div>
+                      ) : isDocx ? (
+                        <div className="flex flex-col items-center justify-center p-6 w-full h-full bg-blue-50/20 dark:bg-blue-950/5">
+                          <FileText className="size-14 text-blue-500 stroke-[1.5]" />
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center p-6 w-full h-full bg-muted/10">
+                          <FileText className="size-12 text-muted-foreground/60 stroke-[1.5]" />
+                        </div>
+                      )}
 
-                    {/* Content Type Badge Overlay */}
-                    <span className="absolute top-3 right-3 text-[10px] font-bold uppercase tracking-wider text-white bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded-lg">
-                      {isWeb ? "Web" : isPdf ? "PDF" : isVideo ? "Video" : isDocx ? "DOCX" : m.contentType}
-                    </span>
-                    {m.ytDuration !== null && m.ytDuration !== undefined && m.ytDuration > 0 && (
-                      <span className="absolute bottom-3 right-3 text-[10px] font-bold text-white bg-black/75 backdrop-blur-sm px-2 py-0.5 rounded-lg font-mono">
-                        {formatDuration(m.ytDuration)}
+                      {/* Content Type Badge Overlay */}
+                      <span className="absolute top-3 right-3 text-[10px] font-bold uppercase tracking-wider text-white bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded-lg">
+                        {isWeb ? "Web" : isPdf ? "PDF" : isVideo ? "Video" : isDocx ? "DOCX" : m.contentType}
                       </span>
-                    )}
+                      {m.ytDuration !== null && m.ytDuration !== undefined && m.ytDuration > 0 && (
+                        <span className="absolute bottom-3 right-3 text-[10px] font-bold text-white bg-black/75 backdrop-blur-sm px-2 py-0.5 rounded-lg font-mono">
+                          {formatDuration(m.ytDuration)}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Card Content Top part */}
+                    <div className="p-3.5 pb-0 flex-1">
+                      <div className="space-y-1.5">
+                        <h3 className="text-sm font-bold text-foreground leading-snug line-clamp-2" title={m.title || "Untitled"}>
+                          {m.title || "Untitled shared material"}
+                        </h3>
+                        {(m.ogDescription || m.body) && (
+                          <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed">
+                            {m.ogDescription || m.body}
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Card Content */}
-                  <CardContent className="p-4 flex-1 flex flex-col justify-between space-y-4">
-                    <div className="space-y-1.5">
-                      <h3 className="text-sm font-bold text-foreground leading-snug line-clamp-2" title={m.title || "Untitled"}>
-                        {m.title || "Untitled shared material"}
-                      </h3>
-                      {(m.ogDescription || m.body) && (
-                        <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed">
-                          {m.ogDescription || m.body}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Footer Info */}
-                    <div className="flex items-center justify-between border-t border-border/30 pt-3 select-none">
-                      <span className="text-[10px] font-semibold text-muted-foreground tracking-tight max-w-[50%] truncate">
+                  {/* Footer Info (Rendered outside the click wrapper) */}
+                  <div className="p-3.5 pt-2 select-none shrink-0">
+                    <div className="flex items-center justify-between border-t border-border/30 pt-1.5">
+                      <span className="text-[10px] font-semibold text-muted-foreground tracking-tight max-w-[40%] truncate">
                         {isWeb ? m.ogDomain || "Web link" : isPdf && m.fileSize ? `${(m.fileSize / (1024 * 1024)).toFixed(1)} MB` : m.fileName || "File"}
                       </span>
-                      <span className="text-[10px] text-muted-foreground/80 font-medium">
-                        shared by <span className="font-bold text-foreground">{item.sharer?.fullName || "Member"}</span>
-                      </span>
-                    </div>
-                  </CardContent>
-
-                  {/* PREMIUM ACTION HOVER OVERLAY */}
-                  <div className="absolute inset-0 bg-background/90 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-all duration-200 flex flex-col items-center justify-center gap-3 p-4">
-                    <h4 className="text-xs font-bold text-foreground text-center line-clamp-2 px-2 mb-1">
-                      {m.title || "Shared Resource"}
-                    </h4>
-                    
-                    <div className="flex flex-col gap-2 w-44" onClick={(e) => e.stopPropagation()}>
-                      {/* Copy to Library Action */}
-                      <Button 
-                        onClick={(e) => { e.stopPropagation(); addToLibraryMutation.mutate({ materialId: m.id }); }}
-                        variant="default" 
-                        size="sm" 
-                        className="h-8 text-xs font-semibold rounded-lg shadow-sm"
-                      >
-                        <Share2 className="size-3.5 mr-1.5" />
-                        Copy to Library
-                      </Button>
-
-                      {/* Open / Preview Action */}
-                      {isPreviewable ? (
-                        <Button 
-                          onClick={(e) => { e.stopPropagation(); router.push(`/preview/${m.id}`); }}
-                          variant="outline" 
-                          size="sm" 
-                          className="h-8 text-xs font-semibold rounded-lg bg-card border-border hover:bg-muted"
-                        >
-                          <Eye className="size-3.5 mr-1.5" />
-                          Preview
-                        </Button>
-                      ) : m.url ? (
-                        <Button 
-                          onClick={(e) => { e.stopPropagation(); window.open(m.url!, "_blank"); }}
-                          variant="outline" 
-                          size="sm" 
-                          className="h-8 text-xs font-semibold rounded-lg bg-card border-border hover:bg-muted"
-                        >
-                          <ExternalLink className="size-3.5 mr-1.5" />
-                          Open Link
-                        </Button>
-                      ) : m.storagePath ? (
-                        <Button 
-                          onClick={(e) => { e.stopPropagation(); handleDownload(m.storagePath, m.fileName); }}
-                          variant="outline" 
-                          size="sm" 
-                          className="h-8 text-xs font-semibold rounded-lg bg-card border-border hover:bg-muted"
-                        >
-                          <Download className="size-3.5 mr-1.5" />
-                          Download
-                        </Button>
-                      ) : null}
-
-                      {/* Edit Details Action (if owner) */}
-                      {user && m.ownerId === user.id && (
-                        <Button 
-                          onClick={(e) => { e.stopPropagation(); setEditMaterial(m); }}
-                          variant="outline" 
-                          size="sm" 
-                          className="h-8 text-xs font-semibold rounded-lg bg-card border-border hover:bg-muted"
-                        >
-                          <Edit3 className="size-3.5 mr-1.5" />
-                          Edit Details
-                        </Button>
-                      )}
-
-                      {/* Delete (Unshare) Action for Owner / Admin / Sharer */}
-                      {(isOwnerOrAdmin || isSharer) && (
-                        <Button 
-                          onClick={(e) => { e.stopPropagation(); handleUnshare(item.id); }}
-                          variant="destructive" 
-                          size="sm" 
-                          className="h-8 text-xs font-semibold rounded-lg cursor-pointer"
-                        >
-                          <Trash2 className="size-3.5 mr-1.5" />
-                          Unshare
-                        </Button>
-                      )}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-[10px] text-muted-foreground/80 font-medium truncate max-w-[80px]" title={`Shared by ${item.sharer?.fullName || "Member"}`}>
+                          by <span className="font-bold text-foreground">{item.sharer?.fullName?.split(" ")[0] || "Member"}</span>
+                        </span>
+                        {renderHiveGridDropdown(item, m, isOwnerOrAdmin, isSharer)}
+                      </div>
                     </div>
                   </div>
                 </Card>

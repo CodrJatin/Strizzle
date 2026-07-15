@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import type { inferRouterOutputs } from "@trpc/server";
 
 import type { AppRouter } from "@/server/routers/root";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/trpc/client";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -42,6 +43,7 @@ export type ShelfItem = RouterOutputs["shelf"]["getShelfItems"][number];
 interface ShelfItemCardProps {
   item?: ShelfItem;
   onActionClick?: (item: ShelfItem) => void;
+  onTextOpenClick?: (item: ShelfItem) => void;
   isShimmer?: boolean;
 }
 
@@ -93,7 +95,7 @@ function getFileDetails(mimeType: string | null) {
   return { icon: File, color: "text-primary bg-primary/10 border-primary/20" };
 }
 
-export function ShelfItemCard({ item, onActionClick, isShimmer = false }: ShelfItemCardProps) {
+export function ShelfItemCard({ item, onActionClick, onTextOpenClick, isShimmer = false }: ShelfItemCardProps) {
   const utils = api.useUtils();
   const supabase = createClient();
   const confirm = useConfirmStore((s) => s.confirm);
@@ -177,8 +179,10 @@ export function ShelfItemCard({ item, onActionClick, isShimmer = false }: ShelfI
   const isPendingMutation = deleteShelfItem.isPending || moveToLibrary.isPending;
 
   // Actions
-  const handleRemove = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const router = useRouter();
+
+  const handleRemove = async (e?: React.MouseEvent | { stopPropagation: () => void }) => {
+    e?.stopPropagation();
     const confirmed = await confirm({
       title: "Remove Item",
       description: `Are you sure you want to remove "${material.title || material.fileName || "this item"}" from your desk?`,
@@ -190,14 +194,32 @@ export function ShelfItemCard({ item, onActionClick, isShimmer = false }: ShelfI
     }
   };
 
-  const handleMoveToLibrary = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleMoveToLibrary = (e?: React.MouseEvent | { stopPropagation: () => void }) => {
+    e?.stopPropagation();
     moveToLibrary.mutate({ shelfItemId: item.id });
   };
 
-  const handleOpenActionModal = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleOpenActionModal = (e?: React.MouseEvent | { stopPropagation: () => void }) => {
+    e?.stopPropagation();
     onActionClick?.(item);
+  };
+
+  const handleOpen = (e?: React.MouseEvent | { stopPropagation: () => void }) => {
+    e?.stopPropagation();
+    if (!item) return;
+    if (material.contentType === "text" || material.contentType === "image") {
+      if (onTextOpenClick) {
+        onTextOpenClick(item);
+      } else {
+        if (material.contentType === "text") {
+          toast.info(`Text note content:\n\n${material.body}`);
+        } else if (fileUrl) {
+          window.open(fileUrl, "_blank", "noopener,noreferrer");
+        }
+      }
+    } else {
+      router.push(`/preview/${material.id}`);
+    }
   };
 
   // Generate public URL for images/files in storage
@@ -548,7 +570,7 @@ export function ShelfItemCard({ item, onActionClick, isShimmer = false }: ShelfI
         "rounded-2xl border border-border/80 bg-card overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between h-full relative group cursor-pointer",
         isPendingMutation && "opacity-50 pointer-events-none"
       )}
-      onClick={handleOpenActionModal}
+      onClick={handleOpen}
     >
       {/* Three dots overlay trigger (top-right absolute) */}
       <div className="absolute top-2.5 right-2.5 z-30">
@@ -572,14 +594,14 @@ export function ShelfItemCard({ item, onActionClick, isShimmer = false }: ShelfI
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48 p-1 rounded-xl" onClick={(e) => e.stopPropagation()}>
             <DropdownMenuItem 
-              onClick={handleOpenActionModal}
+              onSelect={() => handleOpenActionModal()}
               className="flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer text-sm font-medium"
             >
               <ExternalLink className="size-4 text-muted-foreground" />
               <span>Organize...</span>
             </DropdownMenuItem>
             <DropdownMenuItem 
-              onClick={handleMoveToLibrary}
+              onSelect={() => handleMoveToLibrary()}
               className="flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer text-sm font-medium"
             >
               <Folder className="size-4 text-muted-foreground" />
@@ -587,7 +609,7 @@ export function ShelfItemCard({ item, onActionClick, isShimmer = false }: ShelfI
             </DropdownMenuItem>
             <DropdownMenuSeparator className="my-1 border-border" />
             <DropdownMenuItem 
-              onClick={handleRemove}
+              onSelect={() => handleRemove()}
               className="flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer text-sm font-medium text-destructive hover:bg-destructive/10 focus:bg-destructive/10 focus:text-destructive"
             >
               {isPendingMutation ? (
