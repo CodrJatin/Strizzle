@@ -9,7 +9,7 @@ const handler = (req: Request) =>
     router: appRouter,
     createContext: () => createTRPCContext({ req }),
     onError({ path, error }) {
-      console.error(`❌ tRPC error on path "${path}":`, error.cause ?? error);
+      console.error(`tRPC error on path "${path}":`, error.cause ?? error);
     },
   });
 
