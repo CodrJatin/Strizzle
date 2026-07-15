@@ -239,6 +239,54 @@ All routers assembled in `server/routers/root.ts`.
 
 ---
 
+## Core Abstractions & Shared Practices
+
+### Shared UI Components
+Avoid duplicate UI components or writing native modals/confirmations. Always use:
+- **`ConfirmModal` & `useConfirmStore`**: Never use native `window.confirm` or write local dialog states for actions requiring confirmation. Call `const confirmed = await confirm({ title: 'Remove...', description: '...', variant: 'destructive' })` from `@/store/confirmStore`.
+- **`DropdownSelect`**: Always use this component (which wraps shadcn select) for form input selects, ensuring consistent styling (`h-9.5`, `rounded-xl`, `bg-card`, etc.).
+- **`Brand`**: Use this component (`@/components/Brand`) for displaying the Strizzle brand icon and text consistently.
+- **`QuickAddModal`**: Use this modal for adding text notes, links, or files quickly from the navigation/dashboard.
+
+### Animation & Framer Motion Guidelines
+A premium UI requires motion on interactive elements. Follow these guidelines:
+- **Card/Item Transitions**: Card elements (like shelf or library items) should fade and slide up when mounting:
+  `initial={{ opacity: 0, y: 12 }}` or `scale: 0.95`, `animate={{ opacity: 1, y: 0 }}` or `scale: 1`.
+- **Hover Micro-Animations**: Use subtle translate effects on hover to denote interactivity:
+  `whileHover={{ y: -4 }}` or `whileHover={{ y: -3 }}`.
+- **Standard Transition Parameters**: Use a standard Expo transition:
+  `transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}` (easeOutExpo cubic-bezier).
+- **Exit Animations & Layout Reordering**: When items in a grid/list are added, deleted, or reordered dynamically, wrap them in a `<motion.div layout>` container and use `<AnimatePresence mode="popLayout">` with corresponding `layout` and `exit` attributes on the item divs.
+
+### Keyboard & Modal Accessibility
+- **`useModalKeybinds`**: Every modal or creation dialog containing input forms must import and call `useModalKeybinds(isOpen, onSubmit)` to allow the user to submit by pressing `Enter`.
+- The hook will automatically check focused elements and avoid submitting if the user is focused on inputs that natively handle enter keypresses (such as `TEXTAREA`, `BUTTON`, elements with `contenteditable`, or Radix `combobox`/`listbox` selectors).
+- Always expose a `resetForm()` helper in form modals to clean up internal state on modal close.
+
+### Drag & Drop (Dnd Kit) Guidelines
+When implementing drag-and-drop lists or boards (e.g. syllabus reordering, task board):
+- **Pointer Sensor Constraint**: Always specify an activation distance constraint on the Pointer Sensor to prevent clicks/taps from being misidentified as drag starts:
+  ```typescript
+  useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  ```
+- **Keyboard Access**: Always support keyboard drag-and-drop using `KeyboardSensor` with `coordinateGetter: sortableKeyboardCoordinates`.
+
+### Content-Addressable Storage & Hashing
+- Before uploading files to Supabase Storage, always calculate a SHA-256 hex checksum of the file content on the client side using the helper `hashFile(file)` from `@/lib/hashFile.ts`.
+- This hash is used by the backend to dedup files, track references (`storage_objects.ref_count`), and implement content-addressable storage.
+
+### Service Worker & Offline Caching
+- **`useMaterialCache` Hook**: Any component displaying materials must use the custom hook `useMaterialCache()` to communicate with the Serwist service worker (`sw.ts`).
+- Check if an item is cached locally using `isCached(material.storagePath)` and trigger downloads to the local offline cache using `downloadMaterial(material.id, fileUrl)`.
+
+### YouTube Integration Utilities
+- When extracting durations or parsing playlist indices, always use the helper functions in `@/lib/youtube.ts`:
+  - `parseVideoRange(rangeStr, maxCount)`: Parses a range string (e.g., `"1-5, 8"`) into a Set of indices.
+  - `parseISO8601Duration(durationStr)`: Formats ISO 8601 duration string into seconds.
+  - `fetchYoutubeVideoDurationWithoutKey(url)`: Scrapes video pages to fetch duration without requiring a YouTube API key.
+
+---
+
 ## RBAC Reference
 
 ```
@@ -353,17 +401,15 @@ const mutation = api.[router].[procedure].useMutation({
 
 ## When Starting Any Task
 
-1. Read `ARCHITECTURE.md` if you haven't already this session
-2. Identify which tables are involved — check `db/schema.ts`
-3. Identify which tRPC router the new procedure belongs in — check the Router Map above
-4. If a new table is needed: write the migration first, verify RLS, then write the procedure
-5. Write the tRPC procedure with Zod input schema
-6. Write the UI component
-7. Add the optimistic update to the mutation
-8. Add the correct `staleTime` to the query
-9. Run `npx tsc --noEmit` — must show zero errors
-10. Use Playwright MCP to visually verify the feature at desktop (1280px) and mobile (375px)
-11. Confirm the mutation has a rollback path by temporarily making it fail
+1. Identify which tables are involved — check `db/schema.ts`
+2. Identify which tRPC router the new procedure belongs in — check the Router Map above
+3. If a new table is needed: write the migration first, verify RLS, then write the procedure
+4. Write the tRPC procedure with Zod input schema
+5. Write the UI component
+6. Add the optimistic update to the mutation
+7. Add the correct `staleTime` to the query
+8. Run `npx tsc --noEmit` — must show zero errors
+9. Confirm the mutation has a rollback path by temporarily making it fail
 
 ---
 
